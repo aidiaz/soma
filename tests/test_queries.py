@@ -6,6 +6,7 @@ from datetime import date, timedelta
 
 import pytest
 
+from traindb.clock import today as utc_today
 from traindb.db import get_session
 from traindb.models import Body, DailyHealth, Nutrition
 from traindb.serve.queries import (
@@ -27,7 +28,7 @@ def test_health_trend_returns_newest_first(seeded):
 
 def test_health_trend_window_excludes_older_rows(seeded):
     with get_session() as session:
-        session.merge(DailyHealth(date=date.today() - timedelta(days=200), resting_hr=99, raw={}))
+        session.merge(DailyHealth(date=utc_today() - timedelta(days=200), resting_hr=99, raw={}))
         session.commit()
     assert all(row["resting_hr"] != 99 for row in get_health_trend(days=30)["days"])
 
@@ -129,7 +130,7 @@ def test_log_nutrition_returns_what_it_stored(db):
 
 
 def test_log_nutrition_defaults_to_today(db):
-    assert log_nutrition(kcal=2_000)["date"] == date.today().isoformat()
+    assert log_nutrition(kcal=2_000)["date"] == utc_today().isoformat()
 
 
 def test_log_nutrition_upserts_on_the_date(db):
@@ -168,7 +169,7 @@ def test_log_body_persists(db):
 
 
 def test_log_body_defaults_to_today(db):
-    assert log_body(weight_kg=72.0)["date"] == date.today().isoformat()
+    assert log_body(weight_kg=72.0)["date"] == utc_today().isoformat()
 
 
 def test_log_body_upserts_on_the_date(db):

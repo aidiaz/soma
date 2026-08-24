@@ -20,6 +20,7 @@ from typing import Any
 
 from sqlmodel import col, desc, select
 
+from traindb.clock import today
 from traindb.db import get_session
 from traindb.metrics import training_load_series, tss_ramp
 from traindb.models import Activity, Body, DailyHealth, FitnessTest, Nutrition
@@ -66,7 +67,7 @@ def _parse_week_start(week_start: str | None) -> date:
     works without the caller needing a calendar.
     """
     if week_start is None:
-        return _monday(date.today())
+        return _monday(today())
     return _monday(date.fromisoformat(week_start))
 
 
@@ -223,7 +224,7 @@ def get_health_trend(days: int = 14) -> dict[str, Any]:
     For spotting the multi-day patterns the coaching rules key on — which need a
     run of days, not a single reading.
     """
-    end = date.today()
+    end = today()
     start = end - timedelta(days=days - 1)
     with get_session() as session:
         rows = session.exec(
@@ -290,7 +291,7 @@ def log_nutrition(
     note: str | None = None,
 ) -> dict[str, Any]:
     """Record a day's intake. Upserts on the date — no delete, corrections overwrite."""
-    target = date.fromisoformat(day) if day else date.today()
+    target = date.fromisoformat(day) if day else today()
     row = Nutrition(
         date=target,
         kcal=kcal,
@@ -316,7 +317,7 @@ def log_body(
     waist_cm: float | None = None,
 ) -> dict[str, Any]:
     """Record a body measurement. Upserts on the date."""
-    target = date.fromisoformat(day) if day else date.today()
+    target = date.fromisoformat(day) if day else today()
     with get_session() as session:
         session.merge(Body(date=target, weight_kg=weight_kg, waist_cm=waist_cm))
         session.commit()
@@ -359,11 +360,11 @@ def log_test(
 
 
 __all__ = [
-    "get_training_week",
     "get_health_trend",
     "get_recent_activities",
     "get_tests",
-    "log_nutrition",
+    "get_training_week",
     "log_body",
+    "log_nutrition",
     "log_test",
 ]

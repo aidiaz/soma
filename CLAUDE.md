@@ -26,6 +26,7 @@ a context window, which is the problem this replaced.
 ```
 src/traindb/
   models.py            schema; date is the join key
+  clock.py             what "today" means; UTC, in one place
   db.py                SQLite engine + WAL pragmas
   metrics.py           CTL/ATL/TSB and the weekly ramp
   ingest/garmin/       auth CLI, client, sync, remap
@@ -98,7 +99,19 @@ Do not "correct" these without re-checking.
 3. **Rollback journal mode.** The sync worker and the server are separate
    containers on one database file. Without WAL a reader blocks a writer.
    `db.connect()` sets WAL, `busy_timeout` and `synchronous=NORMAL`.
-4. **A field named `date` shadowing the `date` type.** `models.py` imports
+4. **"Today" resolved by whatever zone the process ran in.** Nothing set a
+   timezone, so `date.today()` answered differently on the Pi (a container,
+   therefore UTC) than on a laptop. Because date is the join key, that decided
+   which row a write landed on: `log_nutrition` with no `day` could record
+   dinner against tomorrow, and the tools are upsert-only, so it could not be
+   corrected through the interface. `clock.today()` is now the only answer, it
+   is UTC, and `compose.pi.yaml` pins `TZ` to match. The consequence was
+   accepted knowingly on 2026-08-24: the training day rolls over at midnight
+   UTC. Found by ruff's `DTZ` rules, which is the argument for adopting them.
+   Note what the fix is *not*: `ingest/garmin/sync._parse_dt` stays naive on
+   purpose, because Garmin's `startTimeLocal` is what makes a 23:30 ride count
+   as that day's training. Do not "fix" it to UTC.
+5. **A field named `date` shadowing the `date` type.** `models.py` imports
    `datetime as dt` and annotates `dt.date` for this reason. Reverting to
    `from datetime import date` makes every model fail to build at import.
 

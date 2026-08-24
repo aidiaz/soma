@@ -9,12 +9,12 @@ from __future__ import annotations
 
 import time
 
+from traindb.config import settings
 from traindb.ingest.garmin.auth import (
     cooldown_remaining,
     last_attempt_at,
     record_attempt,
 )
-from traindb.config import settings
 
 
 def test_no_marker_means_no_cooldown(tokenstore):

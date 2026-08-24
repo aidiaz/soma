@@ -16,10 +16,10 @@ the installed package.
 from __future__ import annotations
 
 import ast
-import importlib.metadata as metadata
 import inspect
 import pathlib
 import sys
+from importlib import metadata
 
 from garminconnect import Garmin
 

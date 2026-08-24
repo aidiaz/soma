@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from datetime import timedelta
 
+from traindb.clock import today as utc_today
 from traindb.serve.queries import get_training_week
 
 # --- shape -----------------------------------------------------------------
@@ -21,10 +22,9 @@ def test_resolves_to_the_containing_monday(seeded):
 
 
 def test_defaults_to_the_current_week(db):
-    from datetime import date
-
+    today = utc_today()
     week = get_training_week()
-    assert week["week_start"] == (date.today() - timedelta(days=date.today().weekday())).isoformat()
+    assert week["week_start"] == (today - timedelta(days=today.weekday())).isoformat()
 
 
 def test_always_returns_seven_days(seeded):

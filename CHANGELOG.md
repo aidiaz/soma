@@ -18,7 +18,19 @@ holds it.
   App. Because the agent no longer authors as the owner, a code-owner review
   requirement is satisfiable by the owner and unsatisfiable by the agent, which
   turns tier 3 from a convention into something GitHub can enforce.
+- `clock.py`: one place decides what "today" is, and the answer is UTC.
 - LICENSE (MIT) and this changelog.
+
+### Fixed
+
+- **"Today" depended on where the process ran.** No timezone was configured, so
+  `date.today()` returned the container's UTC date on the Pi and a different
+  date on a developer machine. Since date is the join key, `log_nutrition` and
+  `log_body` with no explicit day could write to the wrong row — uncorrectably,
+  as the tools are upsert-only — and `get_training_week()` could return the
+  wrong week. Surfaced by ruff's `DTZ` rules on an 0.16 upgrade.
+- `_parse_dt` converted Garmin epoch millis using the process's local zone, so
+  the same payload produced a different date depending on the host.
 
 ## [0.1.0] - 2026-08-24
 

@@ -23,7 +23,11 @@ garmin-remap = "traindb.ingest.garmin.remap:main"
 
 [dependency-groups]
 dev = [
-    "ruff>=0.6",
+    # Upper bound deliberately. Ruff's *default* rule set is this project's lint
+    # contract, and 0.16 widened it — 25 findings appeared with no code change
+    # and CI went red on a dependency bump. Pinning the minor makes each
+    # widening an explicit decision on a dependabot PR instead of a surprise.
+    "ruff>=0.16.4,<0.17",
     "basedpyright>=1.18",
     "pytest>=8",
     "pytest-asyncio>=0.24",
