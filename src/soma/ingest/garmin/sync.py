@@ -33,7 +33,7 @@ from soma.clock import UTC, today
 from soma.config import settings
 from soma.db import get_session, init_db
 from soma.ingest.garmin.client import get_client
-from soma.models import Activity, DailyHealth
+from soma.models import WATCH_DERIVED_FIELDS, Activity, DailyHealth
 
 log = logging.getLogger("soma.ingest.garmin")
 
@@ -281,21 +281,55 @@ def sync_day(client: Garmin, d: date) -> int:
     return int(written)
 
 
-def _day_exists(d: date) -> bool:
-    """Whether this day already has stored health data.
+def _day_is_synced(d: date) -> bool:
+    """Whether the *watch* has reported for this day.
 
-    A day the watch never recorded writes no row, so ``--skip-existing`` will
-    re-check it next run. That is the intended trade: a day can gain data later
-    — a watch synced late — and a cheap re-check beats a permanent hole.
+    Row existence is not the test. A phone-only day stores a step count, which
+    is real data but none of the recovery signals, and treating it as complete
+    is what let ``--skip-existing`` skip such days permanently.
     """
     with get_session() as session:
-        return session.get(DailyHealth, d) is not None
+        row = session.get(DailyHealth, d)
+        if row is None:
+            return False
+        return any(getattr(row, name, None) is not None for name in WATCH_DERIVED_FIELDS)
+
+
+def _should_fetch(
+    d: date,
+    end: date,
+    *,
+    skip_existing: bool,
+    refresh_days: int,
+    recheck_days: int,
+) -> bool:
+    """Whether ``d`` is worth requesting on this run.
+
+    Three windows, outermost first:
+
+    - Inside ``refresh_days``: always. Garmin finishes processing a night after
+      it ends, so the last day or two change under us.
+    - Inside ``recheck_days`` and not yet synced by the watch: yes. This is the
+      case the old row-existence test got wrong — a watch that uploads days
+      later brings sleep and HRV with it, and nothing else will go back for it.
+    - Older than ``recheck_days``: no. Some days are permanently phone-only
+      because the watch was not worn, and retrying them nightly forever turns a
+      year-long window into a year of dead requests every night.
+    """
+    if not skip_existing:
+        return True
+    if d >= end - timedelta(days=refresh_days):
+        return True
+    if _day_is_synced(d):
+        return False
+    return d >= end - timedelta(days=recheck_days)
 
 
 def sync(
     days_back: int | None = None,
     skip_existing: bool = False,
     refresh_days: int = 2,
+    recheck_days: int = 30,
 ) -> None:
     init_db()
     client = get_client()
@@ -321,10 +355,15 @@ def sync(
         log.info("Activities upserted: %s", n_act)
         _jitter()
 
-        horizon = end - timedelta(days=refresh_days)
         synced = skipped = 0
         for i, d in enumerate(_daterange(start, end), start=1):
-            if skip_existing and d < horizon and _day_exists(d):
+            if not _should_fetch(
+                d,
+                end,
+                skip_existing=skip_existing,
+                refresh_days=refresh_days,
+                recheck_days=recheck_days,
+            ):
                 skipped += 1
                 continue
             sync_day(client, d)
@@ -366,8 +405,21 @@ def main() -> None:
         default=2,
         help="Always re-fetch the most recent N days even with --skip-existing (default 2).",
     )
+    parser.add_argument(
+        "--recheck-days",
+        type=int,
+        default=30,
+        help="Keep re-checking days the watch has not reported for, this far back "
+        "(default 30). A watch that syncs late brings sleep and HRV with it; past "
+        "this window a day is accepted as permanently phone-only.",
+    )
     args = parser.parse_args()
-    sync(days_back=args.days, skip_existing=args.skip_existing, refresh_days=args.refresh_days)
+    sync(
+        days_back=args.days,
+        skip_existing=args.skip_existing,
+        refresh_days=args.refresh_days,
+        recheck_days=args.recheck_days,
+    )
 
 
 if __name__ == "__main__":

@@ -51,6 +51,21 @@ class Activity(SQLModel, table=True):
     raw: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
 
 
+# Columns only a watch can produce. ``steps`` is deliberately excluded: Garmin
+# Connect records those from the phone, so a day holding steps and nothing else
+# is a day the watch never uploaded. Both the sync worker and the coverage
+# report need this distinction, and neither may import the other.
+WATCH_DERIVED_FIELDS = (
+    "sleep_score",
+    "sleep_duration_s",
+    "hrv_status",
+    "hrv_ms",
+    "resting_hr",
+    "body_battery_high",
+    "body_battery_low",
+)
+
+
 class DailyHealth(SQLModel, table=True):
     """One row per day. Garmin is the only source for every field here.
 
