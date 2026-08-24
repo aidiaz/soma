@@ -20,10 +20,10 @@ from typing import Any
 
 from sqlmodel import col, desc, select
 
-from soma.clock import today
+from soma.clock import now, today
 from soma.db import get_session
 from soma.metrics import duplicate_efforts, training_load_series, tss_ramp
-from soma.models import WATCH_DERIVED_FIELDS, Activity, Body, DailyHealth, FitnessTest, Nutrition
+from soma.models import WATCH_DERIVED_FIELDS, Activity, Body, DailyHealth, FitnessTest, IntakeEntry
 
 # How far back to warm the CTL/ATL EWMAs before reading them. CTL's time
 # constant is 42 days, so a shorter window reports fitness that is an artefact
@@ -108,6 +108,36 @@ def _health_coverage(rows: list[DailyHealth], start: date, end: date) -> dict[st
     return coverage
 
 
+# Fields that add up across a day. `ml` is here too: water is logged a glass at
+# a time and the day's figure is the total, exactly like calories.
+_INTAKE_SUMMED = ("kcal", "protein_g", "fat_g", "carbs_g", "ml")
+
+
+def _daily_intake(entries: list[IntakeEntry]) -> dict[date, dict[str, Any]]:
+    """Roll entries up per day.
+
+    The database does the join, so a caller never adds meals together — and an
+    agent logging lunch never has to know what breakfast was. That is the whole
+    reason entries replaced a daily row.
+
+    A field stays ``None`` when no entry that day carried it, rather than
+    becoming 0. Nobody logging only water has eaten zero calories; they have
+    logged no calories, and the two must not read the same.
+    """
+    days: dict[date, dict[str, Any]] = {}
+    for entry in entries:
+        day = days.setdefault(
+            entry.date,
+            {"date": entry.date.isoformat(), "entries": 0} | dict.fromkeys(_INTAKE_SUMMED),
+        )
+        day["entries"] += 1
+        for field in _INTAKE_SUMMED:
+            value = getattr(entry, field, None)
+            if value is not None:
+                day[field] = (day[field] or 0) + value
+    return days
+
+
 # --------------------------------------------------------------------------- #
 # reads
 # --------------------------------------------------------------------------- #
@@ -133,10 +163,10 @@ def get_training_week(week_start: str | None = None) -> dict[str, Any]:
                 col(DailyHealth.date) >= prior_start, col(DailyHealth.date) <= prior_end
             )
         ).all()
-        food = session.exec(
-            select(Nutrition)
-            .where(col(Nutrition.date) >= start, col(Nutrition.date) <= end)
-            .order_by(col(Nutrition.date))
+        intake = session.exec(
+            select(IntakeEntry)
+            .where(col(IntakeEntry.date) >= start, col(IntakeEntry.date) <= end)
+            .order_by(col(IntakeEntry.at))
         ).all()
         body = session.exec(
             select(Body)
@@ -150,7 +180,7 @@ def get_training_week(week_start: str | None = None) -> dict[str, Any]:
         ).first()
 
     health_by_date = {row.date: row for row in health}
-    food_by_date = {row.date: row for row in food}
+    food_by_date = _daily_intake(list(intake))
     days = []
     for i in range(7):
         d = start + timedelta(days=i)
@@ -160,7 +190,7 @@ def get_training_week(week_start: str | None = None) -> dict[str, Any]:
             {
                 "date": d.isoformat(),
                 "health": _dump(h) if h else None,
-                "nutrition": _dump(n) if n else None,
+                "nutrition": n,
             }
         )
 
@@ -188,11 +218,15 @@ def get_training_week(week_start: str | None = None) -> dict[str, Any]:
         },
         "signals": {
             # Nutrition. Flagged before anything else by the coaching rules.
-            "avg_kcal": _mean([n.kcal for n in food], 0),
-            "avg_protein_g": _mean([n.protein_g for n in food]),
-            "avg_fat_g": _mean([n.fat_g for n in food]),
-            "avg_carbs_g": _mean([n.carbs_g for n in food]),
-            "nutrition_days_logged": len(food),
+            # Averaged over days that have an entry, not over the week: a week
+            # with two logged days is a sample of two, and dividing by seven
+            # would report an under-eating that is really under-logging.
+            "avg_kcal": _mean([d["kcal"] for d in food_by_date.values()], 0),
+            "avg_protein_g": _mean([d["protein_g"] for d in food_by_date.values()]),
+            "avg_fat_g": _mean([d["fat_g"] for d in food_by_date.values()]),
+            "avg_carbs_g": _mean([d["carbs_g"] for d in food_by_date.values()]),
+            "avg_water_ml": _mean([d["ml"] for d in food_by_date.values()]),
+            "nutrition_days_logged": len(food_by_date),
             # Load.
             "tss": ramp["tss"],
             "prior_week_tss": ramp["prior_week_tss"],
@@ -306,37 +340,74 @@ def get_tests() -> list[dict[str, Any]]:
 # --------------------------------------------------------------------------- #
 # writes — narrow and deliberate
 # --------------------------------------------------------------------------- #
-def log_nutrition(
-    day: str | None = None,
+def _append(entry: IntakeEntry) -> dict[str, Any]:
+    """Store one entry and return the day it landed on, totalled.
+
+    Returning the running total rather than the entry is deliberate: the caller
+    almost always wants to know where the day now stands, and making them ask
+    again would put the arithmetic back in the conversation.
+    """
+    with get_session() as session:
+        session.add(entry)
+        session.commit()
+        rest = session.exec(select(IntakeEntry).where(col(IntakeEntry.date) == entry.date)).all()
+        totals = _daily_intake(list(rest))[entry.date]
+    return {"logged": _dump(entry), "day_total": totals}
+
+
+def log_food(
     kcal: int | None = None,
     protein_g: float | None = None,
     fat_g: float | None = None,
     carbs_g: float | None = None,
-    creatine: bool = False,
-    magnesium: bool = False,
-    vitamin_d: bool = False,
-    probiotic: bool = False,
+    item: str | None = None,
+    qty: float | None = None,
+    unit: str | None = None,
     note: str | None = None,
+    day: str | None = None,
 ) -> dict[str, Any]:
-    """Record a day's intake. Upserts on the date — no delete, corrections overwrite."""
+    """Add one thing eaten. Appends — it never overwrites what is already there.
+
+    Call it per meal. Nobody knows their day's total while eating, and the tool
+    this replaced required exactly that: it rewrote the whole day, so logging
+    lunch erased breakfast and nulled any macro not repeated.
+
+    Estimation belongs in the conversation, not here. Read the label, judge the
+    portion, and pass numbers. Supplements are the same shape with ``qty`` and
+    ``unit`` — 1.5 scoops, 2 pills — and no macros.
+
+    ``day`` defaults to today in the configured timezone, so an evening meal
+    lands on the evening's date.
+    """
     target = date.fromisoformat(day) if day else today()
-    row = Nutrition(
-        date=target,
-        kcal=kcal,
-        protein_g=protein_g,
-        fat_g=fat_g,
-        carbs_g=carbs_g,
-        creatine=creatine,
-        magnesium=magnesium,
-        vitamin_d=vitamin_d,
-        probiotic=probiotic,
-        note=note,
+    return _append(
+        IntakeEntry(
+            at=now().replace(tzinfo=None),
+            date=target,
+            item=item,
+            qty=qty,
+            unit=unit,
+            kcal=kcal,
+            protein_g=protein_g,
+            fat_g=fat_g,
+            carbs_g=carbs_g,
+            note=note,
+        )
     )
-    with get_session() as session:
-        session.merge(row)
-        session.commit()
-        stored = session.get(Nutrition, target)
-        return _dump(stored)
+
+
+def log_water(
+    ml: int,
+    note: str | None = None,
+    day: str | None = None,
+) -> dict[str, Any]:
+    """Add water, in millilitres. Appends, so a glass at a time is the point.
+
+    Stored alongside food rather than in its own table: a recovery shake is both
+    at once, and a type tag would force it to be one.
+    """
+    target = date.fromisoformat(day) if day else today()
+    return _append(IntakeEntry(at=now().replace(tzinfo=None), date=target, ml=ml, note=note))
 
 
 def log_body(
@@ -393,6 +464,7 @@ __all__ = [
     "get_tests",
     "get_training_week",
     "log_body",
-    "log_nutrition",
+    "log_food",
     "log_test",
+    "log_water",
 ]

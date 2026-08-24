@@ -15,7 +15,7 @@ import pytest
 from soma.clock import today as utc_today
 from soma.config import Settings, settings
 from soma.db import get_session, init_db, reset_engine
-from soma.models import Activity, Body, DailyHealth, Nutrition
+from soma.models import Activity, Body, DailyHealth, IntakeEntry
 
 
 @pytest.fixture
@@ -139,8 +139,34 @@ def seeded(db):
             )
         )
 
-        session.merge(Nutrition(date=days[0], kcal=2_400, protein_g=150.0, creatine=True))
-        session.merge(Nutrition(date=days[1], kcal=2_200, protein_g=140.0))
+        # Two entries on the first day, because that is the case the daily-row
+        # shape could not represent: a second call used to erase the first.
+        session.add(
+            IntakeEntry(
+                at=datetime.combine(days[0], datetime.min.time()).replace(hour=8),
+                date=days[0],
+                item="breakfast",
+                kcal=900,
+                protein_g=50.0,
+            )
+        )
+        session.add(
+            IntakeEntry(
+                at=datetime.combine(days[0], datetime.min.time()).replace(hour=20),
+                date=days[0],
+                item="dinner",
+                kcal=1_500,
+                protein_g=100.0,
+            )
+        )
+        session.add(
+            IntakeEntry(
+                at=datetime.combine(days[1], datetime.min.time()).replace(hour=13),
+                date=days[1],
+                kcal=2_200,
+                protein_g=140.0,
+            )
+        )
 
         session.merge(Body(date=days[0], weight_kg=72.0, waist_cm=84.0))
         session.merge(Body(date=prior_monday, weight_kg=72.8, waist_cm=85.0))
