@@ -64,6 +64,21 @@ class Settings(BaseSettings):
     garmin_request_delay_min: float = 0.4
     garmin_request_delay_max: float = 1.2
 
+    # --- Wahoo ingestion ---
+    # Wahoo is the source of truth for virtual and trainer rides: Garmin records
+    # none of them, which is why this exists at all. See issue #3.
+    wahoo_client_id: str = ""
+    wahoo_client_secret: str = ""
+    # Must match a callback URL registered on the app, byte for byte. Wahoo
+    # requires HTTPS, so this cannot be a localhost address.
+    wahoo_redirect_uri: str = ""
+    wahoo_tokenstore: Path = DATA_DIR / "wahoo_tokens.json"
+    wahoo_sync_days_back: int = 365
+    wahoo_api_base: str = "https://api.wahooligan.com"
+    # Refresh this many seconds before the access token actually expires, so a
+    # long sync cannot have one die underneath it mid-page.
+    wahoo_refresh_margin_s: float = 300.0
+
     @field_validator("allowed_emails", mode="before")
     @classmethod
     def _split_emails(cls, value: Any) -> Any:
@@ -82,6 +97,11 @@ class Settings(BaseSettings):
     def garmin_cooldown_file(self) -> Path:
         """Where the Garmin auth CLI records its last credential-login attempt."""
         return self.garmin_tokenstore / "last_login_attempt"
+
+    @property
+    def wahoo_configured(self) -> bool:
+        """Whether there is enough config to attempt a Wahoo OAuth exchange."""
+        return bool(self.wahoo_client_id and self.wahoo_client_secret and self.wahoo_redirect_uri)
 
     @property
     def oauth_configured(self) -> bool:

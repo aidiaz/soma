@@ -30,11 +30,12 @@ src/soma/
   db.py                SQLite engine + WAL pragmas
   metrics.py           CTL/ATL/TSB and the weekly ramp
   ingest/garmin/       auth CLI, client, sync, remap
+  ingest/wahoo/        OAuth CLI, client, sync — trainer rides live here
   serve/               queries, MCP tools, HTTP app, OAuth allowlist
 ```
 
-A second source adds `ingest/wahoo/` beside `ingest/garmin/`. Nothing in
-`serve/` changes.
+`ingest/wahoo/` sits beside `ingest/garmin/`, and adding it changed nothing in
+`serve/` — which was the point of splitting by layer rather than by vendor.
 
 **The MCP server never contacts a vendor. It reads SQLite and writes two
 tables.** Do not add a tool that calls the Garmin or Wahoo API. The reasons:
@@ -117,12 +118,15 @@ Do not "correct" these without re-checking.
 
 ## Known compromises
 
-- **`activities.tss` currently holds Garmin's EPOC-derived training load**, not
-  true TSS. They are different quantities on a similar scale. Ramp is a *ratio*,
+- **`activities.tss` holds two different quantities, by source.** Wahoo rows
+  carry true TSS (`power_bike_tss_last`); Garmin rows carry its EPOC-derived
+  training load. They are different quantities on a similar scale. Ramp is a *ratio*,
   so it survives a consistent scale — there is a test pinning that — but two
   things follow: absolute TSS should not be compared against published plans,
-  and a week straddling the Wahoo switchover will report a ramp that is an
-  artefact of the change. Decide the dedupe rule before Wahoo lands.
+  and a week mixing both sources reports a ramp that is partly an artefact of
+  the mix. In practice Garmin contributes no rides at all, so today every row
+  is Wahoo's and the scale is consistent. `metrics._dedupe` guards the case
+  where that stops being true.
 - **VO2 max and Garmin's training status have no typed columns.** The schema has
   no home for them. They are still fetched and stored in `daily_health.raw`,
   because dropping them is irreversible — Garmin ages data out, so a later
@@ -187,18 +191,37 @@ over Garmin data. The proposal's own order put Wahoo first, but that argument
 was about shrinking the fragile surface *before* paying for it — Garmin was
 already built and tested, so the order inverted.
 
-1. **Phase 1 — Wahoo ingestion.** Blocked on developer approval. Adds
-   `ingest/wahoo/` and a webhook receiver. Answer the dedupe question above
-   before writing it.
-2. **Phase 5 — calendar sync.** Only if SYSTM planned workouts turn out to be
-   reachable via OAuth. `suffersync` on PyPI using raw credentials suggests not.
-   `planned_workouts` and `calendar_sync` exist unused; nothing depends on them.
-3. **Open questions from the proposal**, unanswered: does the Wahoo Cloud API
-   expose full 4DP or only FTP and zones; are SYSTM plans reachable via OAuth;
-   does a personal-use OAuth app get approved; does a SYSTM-uploaded ride feed
-   Garmin's Body Battery.
+1. **Phase 1 — Wahoo ingestion. Built 2026-08-24.** `ingest/wahoo/` holds an
+   OAuth CLI, a client and a sync; `wahoo-sync` runs hourly in compose. No
+   webhook receiver: the app has webhooks disabled, so ingestion polls, which
+   also means the server never needs to be publicly reachable for it.
+   Still to do: a `/callback` route so re-authorising does not mean reading a
+   code out of a container log, and mapping scheduled workouts into
+   `planned_workouts`.
+2. **Phase 5 — calendar sync. Unblocked, not built.** Scheduled SYSTM sessions
+   *are* readable — `/v1/workouts` returns them dated weeks ahead, and
+   `wahoo-sync` already skips them rather than inventing training that never
+   happened. The assumption that `suffersync` using raw credentials meant plans
+   were unreachable was wrong. `planned_workouts` and `calendar_sync` remain
+   unused; mapping into them is the next piece.
+3. **Open questions from the proposal — answered 2026-08-24, against the live
+   API rather than the docs.**
+   - *Full 4DP, or only FTP and zones?* **Only FTP and zones.** No `NM`, `AC` or
+     `MAP` on any endpoint. 4DP stays inside SYSTM.
+   - *Are SYSTM plans reachable?* **Yes.** `/v1/workouts` returns scheduled
+     sessions alongside completed ones, dated weeks ahead, and `plans_read` is
+     granted. Phase 5 is not blocked after all.
+   - *Does a personal-use app get approved?* **Approval is not needed for your
+     own account.** The app sits in `sandbox` and issues working tokens for the
+     owner. Production approval is for letting *other people* authorise.
+   - *Does a SYSTM ride feed Garmin's Body Battery?* **It does not arrive at
+     all.** A 15-day Garmin sync returned zero activities while Wahoo held the
+     same period's riding. That is what put Wahoo on the critical path (#3).
+   - Still open: whether Garmin's `sleep` and `hrv` payloads are empty because
+     the watch is not capturing them or because the API is not returning them.
+     Both came back empty for all 15 days; `raw` holds the evidence.
 4. **Image verified 2026-08-24, on `linux/arm64` — the Pi's architecture.** It
-   builds; `curl_cffi` 0.15.0 imports on aarch64, which was the risk; all five
+   builds; `curl_cffi` 0.15.0 imports on aarch64, which was the risk; all seven
    console scripts resolve bare, which is what the `PATH` line in the
    `Dockerfile` exists to guarantee. Under compose the server reaches `healthy`
    in six seconds with no restarts, publishes only `127.0.0.1:8181`, and passes
