@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from garminconnect import Garmin
 
-from traindb.config import settings
+from soma.config import settings
 
 
 class NotAuthenticatedError(RuntimeError):

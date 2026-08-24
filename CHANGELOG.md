@@ -14,7 +14,7 @@ holds it.
 
 - Repository workflow: issue templates, PR template, CODEOWNERS, dependabot,
   and `docs/WORKFLOW.md` describing the risk tiers and who merges what.
-- A separate agent identity, `traindb-agent[bot]`, authenticating as a GitHub
+- A separate agent identity, `soma-agent[bot]`, authenticating as a GitHub
   App. Because the agent no longer authors as the owner, a code-owner review
   requirement is satisfiable by the owner and unsatisfiable by the agent, which
   turns tier 3 from a convention into something GitHub can enforce.
@@ -59,5 +59,5 @@ SQLite database, correlated by date and served to Claude over MCP.
 - VO2 max and Garmin training status are stored only in `daily_health.raw`.
 - The Docker image has never been built. No Docker daemon was available.
 
-[Unreleased]: https://github.com/aidiaz/traindb/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/aidiaz/traindb/releases/tag/v0.1.0
+[Unreleased]: https://github.com/aidiaz/soma/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/aidiaz/soma/releases/tag/v0.1.0

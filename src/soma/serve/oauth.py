@@ -3,7 +3,7 @@
 FastMCP's ``GoogleProvider`` proves *who* a caller is. It has no notion of who
 is *allowed* — any Google account on earth completes the flow successfully. This
 module is the authorisation half: it wraps the provider so a verified token is
-only accepted when its email claim is on ``TRAINDB_ALLOWED_EMAILS``.
+only accepted when its email claim is on ``SOMA_ALLOWED_EMAILS``.
 
 Because that list is the only thing standing between the public internet and a
 year of personal health data, :func:`build_auth` refuses to build a provider
@@ -15,9 +15,9 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from traindb.config import Settings
+from soma.config import Settings
 
-log = logging.getLogger("traindb.serve.oauth")
+log = logging.getLogger("soma.serve.oauth")
 
 # Google's access-token introspection does not reliably report "openid" as a
 # granted scope, so requiring it here makes verification fail *after* an
@@ -48,10 +48,10 @@ def build_auth(settings: Settings) -> Any:
         return None
     if not settings.allowed_emails:
         raise AllowlistEmptyError(
-            "TRAINDB_ALLOWED_EMAILS is empty while Google OAuth is enabled. "
+            "SOMA_ALLOWED_EMAILS is empty while Google OAuth is enabled. "
             "Google sign-in alone authenticates but does not authorise — with no "
             "allowlist any Google account could read your health data. Set the "
-            "list, or disable OAuth with TRAINDB_OAUTH_ENABLED=false."
+            "list, or disable OAuth with SOMA_OAUTH_ENABLED=false."
         )
 
     from fastmcp.server.auth.providers.google import GoogleProvider

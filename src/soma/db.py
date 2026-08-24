@@ -17,7 +17,7 @@ from sqlalchemy import event
 from sqlalchemy.engine import Engine
 from sqlmodel import Session, SQLModel, create_engine
 
-from traindb.config import settings
+from soma.config import settings
 
 # Wait this long for a competing writer before raising "database is locked".
 BUSY_TIMEOUT_MS = 5_000
@@ -67,7 +67,7 @@ def reset_engine() -> None:
 
 def init_db() -> None:
     """Create the data directory and all tables if they do not exist."""
-    import traindb.models  # noqa: F401  (register tables on the metadata)
+    import soma.models  # noqa: F401  (register tables on the metadata)
 
     SQLModel.metadata.create_all(get_engine())
 

@@ -12,7 +12,7 @@ deliberate:
 Do not add a tool that calls a vendor API.
 
 :func:`build_mcp` is a factory, not a module-level singleton. The HTTP entry
-point (:mod:`traindb.serve.app`) used to mutate a shared instance, which
+point (:mod:`soma.serve.app`) used to mutate a shared instance, which
 silently broke the stdio server; each entry point now gets its own.
 """
 
@@ -23,12 +23,12 @@ from typing import Any
 
 from fastmcp import FastMCP
 
-from traindb.db import init_db
-from traindb.serve import queries
+from soma.db import init_db
+from soma.serve import queries
 
-log = logging.getLogger("traindb.serve.server")
+log = logging.getLogger("soma.serve.server")
 
-SCOPE = "read:traindb"
+SCOPE = "read:soma"
 
 
 def build_mcp(auth: Any = None) -> FastMCP:
@@ -37,7 +37,7 @@ def build_mcp(auth: Any = None) -> FastMCP:
     ``auth`` is a FastMCP auth provider, or ``None`` for stdio, where the
     transport is a local pipe and the OS process boundary is the gate.
     """
-    mcp = FastMCP(name="traindb", auth=auth)
+    mcp = FastMCP(name="soma", auth=auth)
 
     # --- read ---------------------------------------------------------------
 

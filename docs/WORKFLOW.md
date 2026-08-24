@@ -59,11 +59,11 @@ is what makes review enforceable.
 | | Identity | Used for |
 |---|---|---|
 | Owner | `aidiaz` | Reviewing, approving, merging, deciding |
-| Agent | `traindb-agent[bot]` | Branches, commits, PRs, issue comments |
+| Agent | `soma-agent[bot]` | Branches, commits, PRs, issue comments |
 
 The agent authenticates as a GitHub App installation, minting a one-hour token
 per operation with `scripts/agent_token.sh`. The App's private key lives at
-`~/.config/traindb/agent-app.pem`, outside the repository, and the script
+`~/.config/soma/agent-app.pem`, outside the repository, and the script
 refuses to run if it is readable by anyone but its owner.
 
 It is deliberately **not** wired into a git credential helper. That would
@@ -76,7 +76,7 @@ Be honest about the mechanism, because a gate that does not hold is worse than
 no gate — it is a gate you stop checking.
 
 - **`.github/CODEOWNERS` blocks.** GitHub does not let the author of a PR
-  approve it. Because the agent authors as `traindb-agent[bot]` and the owner
+  approve it. Because the agent authors as `soma-agent[bot]` and the owner
   reviews as `aidiaz`, "require review from Code Owners" is satisfiable in the
   normal way — and unsatisfiable by the agent alone. This is the primary gate.
 - **`.github/workflows/tier-gate.yml` is the visible check.** It compares the
@@ -93,8 +93,8 @@ Branch protection and rulesets are **not available on this repository**. Checked
 on 2026-08-24, not assumed:
 
 ```
-GET /repos/aidiaz/traindb/rulesets                   403
-GET /repos/aidiaz/traindb/branches/main/protection   403
+GET /repos/aidiaz/soma/rulesets                   403
+GET /repos/aidiaz/soma/branches/main/protection   403
 "Upgrade to GitHub Pro or make this repository public to enable this feature."
 ```
 

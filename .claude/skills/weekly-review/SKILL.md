@@ -1,6 +1,6 @@
 ---
 name: weekly-review
-description: Run the weekly training review — pull the merged week from traindb and decide what should change. Use when asked "how was my week", "what should I change", "review my training", or at the start of a new training week. Also use when asked whether to add or cut load, or whether a fatigue pattern warrants a rest day.
+description: Run the weekly training review — pull the merged week from soma and decide what should change. Use when asked "how was my week", "what should I change", "review my training", or at the start of a new training week. Also use when asked whether to add or cut load, or whether a fatigue pattern warrants a rest day.
 ---
 
 # Weekly training review

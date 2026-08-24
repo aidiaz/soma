@@ -7,9 +7,9 @@ from fastapi.testclient import TestClient
 from fastmcp.server.auth.providers.google import GoogleProvider
 from fastmcp.server.auth.providers.jwt import StaticTokenVerifier
 
-from traindb.config import settings
-from traindb.serve.app import InsecureConfigError, build_http_auth, create_app
-from traindb.serve.oauth import AllowlistEmptyError
+from soma.config import settings
+from soma.serve.app import InsecureConfigError, build_http_auth, create_app
+from soma.serve.oauth import AllowlistEmptyError
 
 
 @pytest.fixture
@@ -39,7 +39,7 @@ def test_refuses_to_start_with_no_authentication(unconfigured):
 
 
 def test_the_refusal_names_the_variables_to_set(unconfigured):
-    with pytest.raises(InsecureConfigError, match="TRAINDB_API_TOKEN"):
+    with pytest.raises(InsecureConfigError, match="SOMA_API_TOKEN"):
         build_http_auth()
 
 

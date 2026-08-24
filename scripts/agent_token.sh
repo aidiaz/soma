@@ -17,15 +17,15 @@
 # Commits must carry the bot identity too, or the PR is the bot's while every
 # commit inside it is still the owner's:
 #
-#   git -c user.name='traindb-agent[bot]' \
-#       -c user.email='320682002+traindb-agent[bot]@users.noreply.github.com' commit ...
+#   git -c user.name='soma-agent[bot]' \
+#       -c user.email='320682002+soma-agent[bot]@users.noreply.github.com' commit ...
 #
 # Tokens expire after one hour. Mint one per operation; never store one.
 set -euo pipefail
 
-repo="${TRAINDB_AGENT_REPO:-aidiaz/traindb}"
-app_id="${TRAINDB_AGENT_APP_ID:-4704941}"
-key="${TRAINDB_AGENT_KEY:-$HOME/.config/traindb/agent-app.pem}"
+repo="${SOMA_AGENT_REPO:-aidiaz/soma}"
+app_id="${SOMA_AGENT_APP_ID:-4704941}"
+key="${SOMA_AGENT_KEY:-$HOME/.config/soma/agent-app.pem}"
 
 [ -r "$key" ] || { echo "private key not readable: $key" >&2; exit 1; }
 

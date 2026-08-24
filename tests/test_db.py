@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from sqlalchemy import text
 
-from traindb.db import BUSY_TIMEOUT_MS, get_engine, get_session, init_db, reset_engine
-from traindb.models import DailyHealth
+from soma.db import BUSY_TIMEOUT_MS, get_engine, get_session, init_db, reset_engine
+from soma.models import DailyHealth
 
 
 def _pragma(name: str):
@@ -39,7 +39,7 @@ def test_reset_engine_rebuilds(db):
 
 
 def test_reset_engine_picks_up_a_new_path(tmp_path, monkeypatch):
-    from traindb.config import settings
+    from soma.config import settings
 
     monkeypatch.setattr(settings, "db_path", tmp_path / "one.db")
     reset_engine()

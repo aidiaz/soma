@@ -12,7 +12,7 @@ import pytest
 from conftest import make_settings
 from fastmcp.server.auth.providers.google import GoogleProvider
 
-from traindb.serve.oauth import (
+from soma.serve.oauth import (
     EMAIL_SCOPE,
     AllowlistEmptyError,
     build_auth,
@@ -88,7 +88,7 @@ def test_build_auth_refuses_an_empty_allowlist():
 
 
 def test_build_auth_error_names_the_variable_to_set():
-    with pytest.raises(AllowlistEmptyError, match="TRAINDB_ALLOWED_EMAILS"):
+    with pytest.raises(AllowlistEmptyError, match="SOMA_ALLOWED_EMAILS"):
         build_auth(make_settings(allowed_emails=""))
 
 
@@ -104,7 +104,7 @@ def test_build_auth_requests_only_the_email_scope():
 
 
 def test_build_auth_strips_a_trailing_slash_from_base_url():
-    provider = build_auth(make_settings(base_url="https://traindb.example.test/"))
+    provider = build_auth(make_settings(base_url="https://soma.example.test/"))
     assert not str(provider.base_url).endswith("//")
 
 

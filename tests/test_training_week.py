@@ -9,8 +9,8 @@ from __future__ import annotations
 
 from datetime import timedelta
 
-from traindb.clock import today as utc_today
-from traindb.serve.queries import get_training_week
+from soma.clock import today as utc_today
+from soma.serve.queries import get_training_week
 
 # --- shape -----------------------------------------------------------------
 

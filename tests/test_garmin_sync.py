@@ -6,9 +6,9 @@ from datetime import date, datetime
 
 from sqlmodel import select
 
-from traindb.db import get_session
-from traindb.ingest.garmin.remap import remap
-from traindb.ingest.garmin.sync import (
+from soma.db import get_session
+from soma.ingest.garmin.remap import remap
+from soma.ingest.garmin.sync import (
     _is_placeholder,
     _parse_date,
     _parse_dt,
@@ -18,7 +18,7 @@ from traindb.ingest.garmin.sync import (
     map_daily_health,
     sync_day,
 )
-from traindb.models import Activity, DailyHealth
+from soma.models import Activity, DailyHealth
 
 DAY = date(2026, 3, 14)
 

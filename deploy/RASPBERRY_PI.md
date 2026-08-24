@@ -3,13 +3,14 @@
 The shape:
 
 ```
-Claude ──► https://traindb.example.dev ──► [Cloudflare Tunnel] ──► Pi (Docker)
+Claude ──► https://soma.example.dev ──► [Cloudflare Tunnel] ──► Pi (Docker)
                                                                    ├─ server        (MCP, reads SQLite)
                                                                    ├─ garmin-sync   (nightly, talks to Garmin)
                                                                    └─ cloudflared   (dials out)
 ```
 
-No port is published on the Pi. The tunnel dials outward, so there is no inbound
+The server publishes `127.0.0.1:8181` on the Pi — reachable from the Pi itself
+or over SSH, and from nowhere else. The tunnel dials outward, so there is no inbound
 firewall rule, no port forward, and no public IP.
 
 ## 1. Google OAuth client
@@ -23,7 +24,7 @@ Google Cloud console → APIs & Services → Credentials → **Create OAuth clie
 Copy the client ID and secret into `.env`.
 
 Google sign-in proves *who* a caller is. It does not decide whether they are
-allowed — `TRAINDB_ALLOWED_EMAILS` does. The server refuses to start with OAuth
+allowed — `SOMA_ALLOWED_EMAILS` does. The server refuses to start with OAuth
 enabled and that list empty.
 
 ## 2. Cloudflare Tunnel
@@ -48,16 +49,16 @@ the hostname.
 Copy `.env.example` to `.env` and fill in. The values that matter here:
 
 ```bash
-TRAINDB_BASE_URL=https://traindb.example.dev      # pins the OAuth redirect
-TRAINDB_GOOGLE_CLIENT_ID=...apps.googleusercontent.com
-TRAINDB_GOOGLE_CLIENT_SECRET=GOCSPX-...
-TRAINDB_JWT_SIGNING_KEY=...                      # openssl rand -hex 32
-TRAINDB_ALLOWED_EMAILS=you@example.com
-TRAINDB_GARMIN_EMAIL=you@example.com              # the Garmin account to read
+SOMA_BASE_URL=https://soma.example.dev      # pins the OAuth redirect
+SOMA_GOOGLE_CLIENT_ID=...apps.googleusercontent.com
+SOMA_GOOGLE_CLIENT_SECRET=GOCSPX-...
+SOMA_JWT_SIGNING_KEY=...                      # openssl rand -hex 32
+SOMA_ALLOWED_EMAILS=you@example.com
+SOMA_GARMIN_EMAIL=you@example.com              # the Garmin account to read
 CLOUDFLARE_TUNNEL_TOKEN=eyJ...
 ```
 
-`TRAINDB_BASE_URL` is pinned rather than derived from `x-forwarded-host`, so a
+`SOMA_BASE_URL` is pinned rather than derived from `x-forwarded-host`, so a
 spoofed header cannot redirect the OAuth flow somewhere else.
 
 ## 4. First Garmin login
@@ -71,7 +72,7 @@ docker compose -f compose.pi.yaml run --rm garmin-sync garmin-auth
 ```
 
 It prompts for the password and the MFA code, then writes tokens to the
-`traindb-data` volume. Expect to repeat this roughly every six months.
+`soma-data` volume. Expect to repeat this roughly every six months.
 
 **Garmin rate-limits logins per account, not per IP.** Changing network or user
 agent does nothing; only time clears it. `garmin-auth` refuses to retry inside a
@@ -98,7 +99,7 @@ docker compose -f compose.pi.yaml run --rm garmin-sync garmin-sync --days 365 --
 ## 6. Connect Claude Code
 
 ```bash
-claude mcp add --transport http traindb https://traindb.example.dev/mcp
+claude mcp add --transport http soma https://soma.example.dev/mcp
 ```
 
 No `--client-id` and no `--callback-port`: the server publishes a
@@ -114,7 +115,7 @@ died looks exactly like a week of rest days until you look at that list.
 ```bash
 docker compose -f compose.pi.yaml logs --tail 50 garmin-sync
 docker compose -f compose.pi.yaml exec server python -c \
-  "import json; from traindb.serve.queries import get_training_week; \
+  "import json; from soma.serve.queries import get_training_week; \
    print(json.dumps(get_training_week()['coverage'], indent=2))"
 ```
 
@@ -134,11 +135,11 @@ so deploys are a real job. That work is still open — see CLAUDE.md.
 
 ## Backups
 
-`traindb-data` holds the only copy of the database and the Garmin tokens.
+`soma-data` holds the only copy of the database and the Garmin tokens.
 
 ```bash
-docker run --rm -v traindb_traindb-data:/data -v "$PWD":/backup alpine \
-  tar czf /backup/traindb-data-$(date +%F).tar.gz -C /data .
+docker run --rm -v soma_soma-data:/data -v "$PWD":/backup alpine \
+  tar czf /backup/soma-data-$(date +%F).tar.gz -C /data .
 ```
 
 Every table also keeps the untouched Garmin payload in a `raw` column, so if a
