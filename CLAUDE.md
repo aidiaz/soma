@@ -206,9 +206,14 @@ The parts that change what you do:
   feels. `serve/oauth.py`, `config.py`, `.github/`, `deploy/`, `Dockerfile`,
   `compose.pi.yaml`, `.env.example`, `CLAUDE.md` and `docs/WORKFLOW.md` are
   tier 3: a human reads them line by line.
-- **Never apply `reviewed:tier3`, and never apply `agent:ready` to your own
-  issue.** Both labels are a human stating they checked something. Applying one
-  yourself makes the audit trail a lie.
+- **Never apply `reviewed:tier3`, never approve a PR, and never apply
+  `agent:ready` to your own issue.** Each is a human stating they checked
+  something. Doing it yourself makes the audit trail a lie.
+- **Push and open PRs as the bot, not as the owner.** Mint a token with
+  `scripts/agent_token.sh` and set the commit identity explicitly; the script
+  header carries the exact invocation. A PR authored by `aidiaz` cannot be
+  approved by `aidiaz`, so getting this wrong makes the change unmergeable
+  without weakening the gate.
 
 ## Style
 

@@ -33,7 +33,7 @@ jobs:
           # Kept in step with the table in docs/WORKFLOW.md. Changing this list
           # is itself a tier 3 change, because .github/ is on it.
           tier3=$(echo "$changed" | grep -E \
-            '^(src/traindb/serve/oauth\.py|src/traindb/config\.py|\.github/|deploy/|compose\.pi\.yaml|Dockerfile|\.env\.example|CLAUDE\.md|docs/WORKFLOW\.md)' \
+            '^(src/traindb/serve/oauth\.py|src/traindb/config\.py|\.github/|deploy/|compose\.pi\.yaml|Dockerfile|\.env\.example|scripts/agent_token\.sh|CLAUDE\.md|docs/WORKFLOW\.md)' \
             || true)
 
           if [ -n "$tier3" ]; then
