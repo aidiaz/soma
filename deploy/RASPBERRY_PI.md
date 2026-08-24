@@ -3,15 +3,22 @@
 The shape:
 
 ```
-Claude ──► https://soma.example.dev ──► [Cloudflare Tunnel] ──► Pi (Docker)
+Claude ──► https://soma.hwhub.dev ──► [Cloudflare Tunnel] ──► Pi (Docker)
                                                                    ├─ server        (MCP, reads SQLite)
                                                                    ├─ garmin-sync   (nightly, talks to Garmin)
                                                                    └─ cloudflared   (dials out)
 ```
 
 The server publishes `127.0.0.1:8181` on the Pi — reachable from the Pi itself
-or over SSH, and from nowhere else. The tunnel dials outward, so there is no inbound
-firewall rule, no port forward, and no public IP.
+or over an SSH tunnel, and from nowhere else. Cloudflared dials outward, so there
+is no inbound firewall rule, no port forward, and no public IP.
+
+> **Verified on 2026-08-24** against a real `linux/arm64` build: the image
+> builds, the server reaches `healthy` in six seconds under compose, binds only
+> to loopback, and passes all 39 smoke assertions. `garmin-sync` was *not* run —
+> it would spend a real Garmin login, and that rate limit is per account with
+> only time clearing it. Step 4 below is therefore the first time that container
+> has ever executed.
 
 ## 1. Google OAuth client
 
@@ -49,7 +56,7 @@ the hostname.
 Copy `.env.example` to `.env` and fill in. The values that matter here:
 
 ```bash
-SOMA_BASE_URL=https://soma.example.dev      # pins the OAuth redirect
+SOMA_BASE_URL=https://soma.hwhub.dev      # pins the OAuth redirect
 SOMA_GOOGLE_CLIENT_ID=...apps.googleusercontent.com
 SOMA_GOOGLE_CLIENT_SECRET=GOCSPX-...
 SOMA_JWT_SIGNING_KEY=...                      # openssl rand -hex 32
@@ -99,7 +106,7 @@ docker compose -f compose.pi.yaml run --rm garmin-sync garmin-sync --days 365 --
 ## 6. Connect Claude Code
 
 ```bash
-claude mcp add --transport http soma https://soma.example.dev/mcp
+claude mcp add --transport http soma https://soma.hwhub.dev/mcp
 ```
 
 No `--client-id` and no `--callback-port`: the server publishes a
