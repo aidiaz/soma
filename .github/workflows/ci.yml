@@ -53,6 +53,66 @@ jobs:
       - run: uv sync --all-groups
       - run: uv run python scripts/check_api_contract.py
 
+  # The publish job below only runs on pushes to main, so a Dockerfile change or
+  # a bump to one of the docker actions reaches main having never been executed.
+  # This builds the same image without publishing it, so a break lands on the
+  # pull request that caused it instead of on the branch everything deploys from.
+  #
+  # Deliberately arm64 only. That is the Pi, and it is where breakage actually
+  # lives — a missing wheel for aarch64 is the failure this catches, and amd64
+  # would not catch it. Building both would double a QEMU build on a private
+  # repository, where Actions minutes are metered.
+  #
+  # Path-gated for the same reason: most pull requests here touch neither the
+  # image nor its inputs, and a build they cannot break is minutes spent for
+  # nothing.
+  image-build:
+    needs: [lint, test]
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Does this PR touch the image or its inputs?
+        id: relevant
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          changed=$(git diff --name-only "$BASE_SHA" "$HEAD_SHA")
+          if echo "$changed" | grep -qE '^(Dockerfile|\.dockerignore|compose\.pi\.yaml|pyproject\.toml|uv\.lock|\.github/workflows/)'; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            echo "Image inputs changed; building."
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "No image inputs changed; skipping the build."
+          fi
+
+      - if: steps.relevant.outputs.run == 'true'
+        uses: docker/setup-qemu-action@v3
+      - if: steps.relevant.outputs.run == 'true'
+        uses: docker/setup-buildx-action@v3
+      - if: steps.relevant.outputs.run == 'true'
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+      - if: steps.relevant.outputs.run == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/arm64
+          # The whole point: prove it builds without publishing it. No registry
+          # login happens here, so nothing can reach ghcr from a pull request.
+          push: false
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
   image:
     # Only publish what already passed. Skipped on the weekly cron and on PRs
     # from forks, which have no package write permission.
