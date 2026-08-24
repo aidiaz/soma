@@ -22,7 +22,7 @@ from sqlmodel import col, desc, select
 
 from soma.clock import today
 from soma.db import get_session
-from soma.metrics import training_load_series, tss_ramp
+from soma.metrics import duplicate_efforts, training_load_series, tss_ramp
 from soma.models import Activity, Body, DailyHealth, FitnessTest, Nutrition
 
 # How far back to warm the CTL/ATL EWMAs before reading them. CTL's time
@@ -214,6 +214,10 @@ def get_training_week(week_start: str | None = None) -> dict[str, Any]:
         "coverage": {
             "health": _gaps(set(health_by_date), start, end),
             "nutrition": _gaps(set(food_by_date), start, end),
+            # Normally empty. A non-empty list means two vendors both stored one
+            # effort and the ingest filter that should have prevented it did
+            # not — the load below is right, but the ingestion needs fixing.
+            "duplicate_efforts": duplicate_efforts(start, end),
         },
     }
 
