@@ -23,7 +23,7 @@ from sqlmodel import col, desc, select
 from soma.clock import today
 from soma.db import get_session
 from soma.metrics import duplicate_efforts, training_load_series, tss_ramp
-from soma.models import Activity, Body, DailyHealth, FitnessTest, Nutrition
+from soma.models import WATCH_DERIVED_FIELDS, Activity, Body, DailyHealth, FitnessTest, Nutrition
 
 # How far back to warm the CTL/ATL EWMAs before reading them. CTL's time
 # constant is 42 days, so a shorter window reports fitness that is an artefact
@@ -82,6 +82,30 @@ def _gaps(present: set[date], start: date, end: date) -> dict[str, Any]:
         "days_missing": len(missing),
         "missing": missing[:MAX_LISTED_GAPS],
     }
+
+
+def _health_coverage(rows: list[DailyHealth], start: date, end: date) -> dict[str, Any]:
+    """Coverage for health, counting what the watch reported rather than rows.
+
+    A row can exist and still hold nothing the recovery rules can use: Garmin
+    logs steps from the phone on days the watch never synced. Counting those as
+    present made the report claim complete data for days that answer nothing,
+    which is the failure coverage exists to prevent — a gap must not read as a
+    rest day.
+
+    ``by_signal`` is here because "present" is not one thing. A day can carry a
+    resting heart rate and no sleep, and a reader deciding whether to trust a
+    sleep average needs to know that specifically.
+    """
+    watched = {
+        r.date for r in rows if any(getattr(r, f, None) is not None for f in WATCH_DERIVED_FIELDS)
+    }
+    coverage = _gaps(watched, start, end)
+    coverage["by_signal"] = {
+        field: sum(1 for r in rows if getattr(r, field, None) is not None)
+        for field in WATCH_DERIVED_FIELDS
+    }
+    return coverage
 
 
 # --------------------------------------------------------------------------- #
@@ -212,7 +236,7 @@ def get_training_week(week_start: str | None = None) -> dict[str, Any]:
         # Read this before reading anything into a gap. A sync that died looks
         # exactly like a week of rest days until you check which days are absent.
         "coverage": {
-            "health": _gaps(set(health_by_date), start, end),
+            "health": _health_coverage(list(health_by_date.values()), start, end),
             "nutrition": _gaps(set(food_by_date), start, end),
             # Normally empty. A non-empty list means two vendors both stored one
             # effort and the ingest filter that should have prevented it did
@@ -252,7 +276,7 @@ def get_health_trend(days: int = 14) -> dict[str, Any]:
             "body_battery_high_avg": _mean([r.body_battery_high for r in rows]),
             "body_battery_low_avg": _mean([r.body_battery_low for r in rows]),
         },
-        "coverage": _gaps({r.date for r in rows}, start, end),
+        "coverage": _health_coverage(list(rows), start, end),
     }
 
 
