@@ -12,6 +12,11 @@ dependencies = [
     "uvicorn[standard]>=0.30",
     "sqlmodel>=0.0.22",
     "pydantic-settings>=2.5",
+    # Used directly by ingest/wahoo. It already arrived transitively through
+    # fastmcp, and depending on someone else's dependency graph for a module
+    # that will not import without it is how a sync worker breaks on an
+    # unrelated upgrade.
+    "httpx>=0.27",
 ]
 
 [project.scripts]
@@ -20,6 +25,8 @@ soma-http = "soma.serve.app:main"
 garmin-auth = "soma.ingest.garmin.auth:main"
 garmin-sync = "soma.ingest.garmin.sync:main"
 garmin-remap = "soma.ingest.garmin.remap:main"
+wahoo-auth = "soma.ingest.wahoo.auth:main"
+wahoo-sync = "soma.ingest.wahoo.sync:main"
 
 [dependency-groups]
 dev = [

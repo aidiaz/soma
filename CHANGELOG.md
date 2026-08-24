@@ -21,6 +21,11 @@ holds it.
 - `clock.py`: one place decides what "today" is, and the answer is UTC.
 - LICENSE (MIT) and this changelog.
 
+- `ingest/wahoo/`: OAuth CLI, client and sync for the Wahoo Cloud API, plus a
+  `wahoo-sync` service in compose. Wahoo is the source of truth for virtual and
+  trainer rides — Garmin records none of them — so this is where training load
+  comes from rather than a refinement of it.
+
 ### Fixed
 
 - **"Today" depended on where the process ran.** No timezone was configured, so
