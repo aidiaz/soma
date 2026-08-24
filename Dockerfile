@@ -1,3 +1,7 @@
+# Held at 3.12 deliberately, and dependabot is told not to offer a minor bump
+# (see .github/dependabot.yml). CI tests 3.12 and 3.13 only, so any other minor
+# would ship a Python the pipeline has never run — and this image has never been
+# built at all (#4). Raising it means widening the CI matrix in the same PR.
 FROM python:3.12-slim
 
 WORKDIR /app

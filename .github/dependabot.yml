@@ -24,6 +24,10 @@ updates:
     directory: "/"
     schedule:
       interval: "monthly"
+    # Every actions bump touches .github/, so every one is tier 3 and costs a
+    # line-by-line read. Six arriving at once is how a review queue stops being
+    # read at all. The limit was missing here and the first run opened ten PRs.
+    open-pull-requests-limit: 3
     labels: ["type:task", "deps", "agent:ready"]
     commit-message:
       prefix: "ci"
@@ -32,6 +36,20 @@ updates:
     directory: "/"
     schedule:
       interval: "monthly"
+    open-pull-requests-limit: 2
     labels: ["type:task", "deps"]
     commit-message:
       prefix: "docker"
+    ignore:
+      # CI tests 3.12 and 3.13 only, so any other minor ships a Python that
+      # nothing in the pipeline has ever run — and the image has never been
+      # built at all (#4). garminconnect reaches Garmin through curl_cffi,
+      # whose arm64 wheels for a new Python are the thing most likely to be
+      # missing, and the failure would land on the Pi rather than in CI.
+      #
+      # Patch updates still arrive, so security fixes are not blocked. Lifting
+      # this means widening the CI matrix first, in the same PR.
+      - dependency-name: "python"
+        update-types:
+          - "version-update:semver-major"
+          - "version-update:semver-minor"
