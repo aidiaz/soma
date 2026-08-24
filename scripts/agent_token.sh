@@ -17,8 +17,8 @@
 # Commits must carry the bot identity too, or the PR is the bot's while every
 # commit inside it is still the owner's:
 #
-#   git -c user.name='soma-agent[bot]' \
-#       -c user.email='320682002+soma-agent[bot]@users.noreply.github.com' commit ...
+#   git -c user.name='soma-sentry[bot]' \
+#       -c user.email='320682002+soma-sentry[bot]@users.noreply.github.com' commit ...
 #
 # Tokens expire after one hour. Mint one per operation; never store one.
 set -euo pipefail

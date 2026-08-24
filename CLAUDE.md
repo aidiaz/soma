@@ -201,7 +201,7 @@ already built and tested, so the order inverted.
    available, so `Dockerfile`, `compose.pi.yaml` and the deploy doc are
    unexercised. Build it before trusting the deploy.
 5. Repository hygiene landed: LICENSE, CHANGELOG, dependabot, issue and PR
-   templates, CODEOWNERS, and a separate agent identity (`soma-agent[bot]`).
+   templates, CODEOWNERS, and a separate agent identity (`soma-sentry[bot]`).
    **Branch protection is unavailable** — a free private repo returns 403 from
    the rulesets and protection endpoints. Decided 2026-08-24 to accept advisory
    gates rather than pay for Pro or go public (#6). So `tier-gate` and

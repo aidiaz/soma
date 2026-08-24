@@ -14,7 +14,7 @@ holds it.
 
 - Repository workflow: issue templates, PR template, CODEOWNERS, dependabot,
   and `docs/WORKFLOW.md` describing the risk tiers and who merges what.
-- A separate agent identity, `soma-agent[bot]`, authenticating as a GitHub
+- A separate agent identity, `soma-sentry[bot]`, authenticating as a GitHub
   App. Because the agent no longer authors as the owner, a code-owner review
   requirement is satisfiable by the owner and unsatisfiable by the agent, which
   turns tier 3 from a convention into something GitHub can enforce.
