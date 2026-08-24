@@ -230,9 +230,8 @@ The parts that change what you do:
   cannot, it is a decision, not a task. Do not close it by choosing — label it
   `needs-decision` and hand it back.
 - **Tier is decided by the paths a PR touches**, not by how risky the change
-  feels. `serve/oauth.py`, `config.py`, `.github/`, `deploy/`, `Dockerfile`,
-  `compose.pi.yaml`, `.env.example`, `CLAUDE.md` and `docs/WORKFLOW.md` are
-  tier 3: a human reads them line by line.
+  feels. The list is `.github/tier3-paths.txt` — read it there rather than
+  trusting a copy, because a copy is what this line used to be.
 - **Never apply `reviewed:tier3`, never approve a PR, and never apply
   `agent:ready` to your own issue.** Each is a human stating they checked
   something. Doing it yourself makes the audit trail a lie.
