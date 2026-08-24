@@ -87,8 +87,30 @@ no gate — it is a gate you stop checking.
   can technically apply it. Only this rule prevents that, and the label event
   names who applied it — so the audit trail survives even if the rule does not.
 
-Both gates are conventional until **branch protection on `main`** requires
-them. Until that is enabled, they inform rather than block.
+### Both gates are advisory, and that is a decision rather than an oversight
+
+Branch protection and rulesets are **not available on this repository**. Checked
+on 2026-08-24, not assumed:
+
+```
+GET /repos/aidiaz/traindb/rulesets                   403
+GET /repos/aidiaz/traindb/branches/main/protection   403
+"Upgrade to GitHub Pro or make this repository public to enable this feature."
+```
+
+So nothing here can stop a merge: not a red `tier-gate`, not a missing
+code-owner approval. The owner decided on 2026-08-24 to accept that rather than
+pay for Pro or make the repository public — see #6, which stays open as the
+trigger if either changes.
+
+What follows is the only rule that matters while this holds:
+
+> **Do not merge past a red `tier-gate` or a missing approval.** The gate is
+> discipline, not machinery. The moment it is bypassed once out of convenience,
+> it stops being read at all, and everything above becomes decoration.
+
+The design is worth keeping anyway, because turning enforcement on later is a
+settings change and no code change.
 
 ## Labels
 

@@ -186,8 +186,12 @@ already built and tested, so the order inverted.
    available, so `Dockerfile`, `compose.pi.yaml` and the deploy doc are
    unexercised. Build it before trusting the deploy.
 5. Repository hygiene landed: LICENSE, CHANGELOG, dependabot, issue and PR
-   templates, CODEOWNERS. Still open: branch protection on `main` is not
-   configured, so `tier-gate` is a visible check rather than a merge blocker.
+   templates, CODEOWNERS, and a separate agent identity (`traindb-agent[bot]`).
+   **Branch protection is unavailable** — a free private repo returns 403 from
+   the rulesets and protection endpoints. Decided 2026-08-24 to accept advisory
+   gates rather than pay for Pro or go public (#6). So `tier-gate` and
+   code-owner approval inform; neither blocks a merge. Do not merge past a red
+   check.
 
 **The real risk is not technical.** The proposal says it plainly: building this
 is more fun than logging breakfast, and the system is worthless without the
