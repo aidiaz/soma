@@ -66,7 +66,22 @@ def reset_engine() -> None:
 
 
 def init_db() -> None:
-    """Create the data directory and all tables if they do not exist."""
+    """Create any missing tables. **Not the schema authority.**
+
+    Alembic owns the schema in every deployment: the ``migrate`` service runs
+    ``soma-migrate`` to completion before anything else opens the database. This
+    remains because tests build a throwaway database per test and running the
+    full revision chain for each would be slow for no benefit.
+
+    That is two definitions of one schema, which is a real hazard —
+    ``tests/test_migrations.py`` asserts autogenerate finds no difference
+    between them, so a model changed without a revision fails CI rather than
+    the Pi.
+
+    It cannot alter or drop anything, which is the whole reason alembic exists
+    here. Adding a column to a model and relying on this to apply it will work
+    on a fresh database and silently do nothing on yours.
+    """
     import soma.models  # noqa: F401  (register tables on the metadata)
 
     SQLModel.metadata.create_all(get_engine())

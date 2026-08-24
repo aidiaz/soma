@@ -187,6 +187,35 @@ docker compose -f compose.pi.yaml exec server python -c \
 
 ## 9. Updating
 
+### Migrations run themselves
+
+The `migrate` service runs `soma-migrate` to completion before `server` starts,
+and the sync workers wait on `server`, so nothing opens the database until the
+schema is current. It is not something to run by hand.
+
+It copies the database first — `soma.pre-migration-<timestamp>.db` in the same
+volume, keeping the five most recent. The manual rows (nutrition, body, tests)
+exist nowhere else, so that copy is the only thing standing between a bad
+revision and losing them.
+
+A database that predates alembic is **stamped**, not rebuilt: it already has the
+tables, so it is marked as being at the baseline revision and upgraded from
+there. That path is tested against a copy of a real database.
+
+If a migration fails, the stack does not start — `server` waits on a service
+that never completed. That is deliberate; the alternative is an application
+running against a half-migrated schema. To recover:
+
+```bash
+docker compose -f compose.pi.yaml logs migrate
+docker compose -f compose.pi.yaml run --rm migrate soma-migrate   # retry
+```
+
+To roll back, restore the pre-migration copy over `soma.db` in the volume and
+pin the image to the previous tag.
+
+
+
 Today the Pi pulls. CI builds a multi-architecture image and pushes it to ghcr;
 the Pi either gets restarted by hand or polls with the optional `watchtower`
 profile:

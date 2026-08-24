@@ -17,6 +17,12 @@ RUN uv sync --frozen --no-dev
 
 COPY scripts/ ./scripts/
 
+# Alembic owns the schema, so the revisions have to be in the image. Without
+# these the migrate service starts, finds no script directory, and reports
+# success having done nothing — which is worse than failing.
+COPY alembic.ini ./
+COPY migrations/ ./migrations/
+
 # The database and the Garmin token store live here. compose mounts a named
 # volume over it; creating it keeps the image runnable without one.
 RUN mkdir -p /app/data

@@ -12,6 +12,23 @@ name: soma
 services:
   # The MCP server. Reads the database and writes nutrition and body entries;
   # it never contacts a vendor.
+  # Schema and data migrations. Runs to completion before anything else opens
+  # the database — three services share one SQLite file and watchtower restarts
+  # them together, so migrating on application startup would race with itself.
+  # It backs the database up first; see soma/migrate.py.
+  migrate:
+    image: ${SOMA_IMAGE:-ghcr.io/aidiaz/soma:latest}
+    build: .
+    container_name: soma-migrate
+    command: ["soma-migrate"]
+    env_file: [.env]
+    environment:
+      SOMA_DB_PATH: /app/data/soma.db
+      TZ: ${SOMA_TIMEZONE:-UTC}
+    volumes:
+      - soma-data:/app/data
+    restart: "no"
+
   server:
     image: ${SOMA_IMAGE:-ghcr.io/aidiaz/soma:latest}
     build: .
@@ -36,6 +53,9 @@ services:
       - "127.0.0.1:8181:8000"
     volumes:
       - soma-data:/app/data
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health').read()"]
