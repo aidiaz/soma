@@ -13,6 +13,8 @@ The engine is built lazily so tests can repoint ``settings.db_path`` and call
 
 from __future__ import annotations
 
+import logging
+
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
 from sqlmodel import Session, SQLModel, create_engine
@@ -65,6 +67,82 @@ def reset_engine() -> None:
     _engine = None
 
 
+# Supplement columns the old daily-nutrition row carried as booleans. They
+# become ordinary entries, because a supplement is a thing taken at a time.
+_LEGACY_SUPPLEMENTS = ("creatine", "magnesium", "vitamin_d", "probiotic")
+
+# Marks a row this migration created, so re-running cannot duplicate it. There
+# is no migration framework here — `create_all` does not alter tables — so this
+# has to be idempotent by construction rather than by a version number.
+MIGRATED_MARKER = "(migrated daily total)"
+
+
+def _migrate_nutrition_to_entries(engine: Any) -> int:
+    """Move any old daily-nutrition rows into intake_entries.
+
+    The old table is left in place rather than dropped. It costs nothing, and
+    it is the only copy of data that a bad migration would otherwise destroy —
+    this project has no schema versioning to roll back to.
+    """
+    from sqlalchemy import text
+
+    with engine.begin() as conn:
+        tables = {
+            r[0] for r in conn.execute(text("SELECT name FROM sqlite_master WHERE type='table'"))
+        }
+        if "nutrition" not in tables or "intake_entries" not in tables:
+            return 0
+
+        already = {
+            r[0]
+            for r in conn.execute(
+                text("SELECT date FROM intake_entries WHERE item = :m"), {"m": MIGRATED_MARKER}
+            )
+        }
+        rows = conn.execute(text("SELECT * FROM nutrition")).mappings().all()
+        moved = 0
+        for row in rows:
+            day = str(row["date"])
+            if day in already:
+                continue
+            # Noon local is a deliberate fiction: the old shape recorded a day,
+            # not a time, and inventing midnight would put every migrated meal
+            # on a boundary where a timezone change could move it.
+            conn.execute(
+                text(
+                    "INSERT INTO intake_entries (at, date, item, kcal, protein_g, fat_g,"
+                    " carbs_g, note) VALUES (:at, :date, :item, :kcal, :protein_g, :fat_g,"
+                    " :carbs_g, :note)"
+                ),
+                {
+                    "at": f"{day} 12:00:00",
+                    "date": day,
+                    "item": MIGRATED_MARKER,
+                    "kcal": row["kcal"],
+                    "protein_g": row["protein_g"],
+                    "fat_g": row["fat_g"],
+                    "carbs_g": row["carbs_g"],
+                    "note": row["note"],
+                },
+            )
+            moved += 1
+            for name in _LEGACY_SUPPLEMENTS:
+                if row.get(name):
+                    conn.execute(
+                        text(
+                            "INSERT INTO intake_entries (at, date, item, qty, unit, note)"
+                            " VALUES (:at, :date, :item, 1, 'serving', :note)"
+                        ),
+                        {
+                            "at": f"{day} 12:00:00",
+                            "date": day,
+                            "item": name,
+                            "note": MIGRATED_MARKER,
+                        },
+                    )
+        return moved
+
+
 def init_db() -> None:
     """Create any missing tables. **Not the schema authority.**
 
@@ -84,7 +162,11 @@ def init_db() -> None:
     """
     import soma.models  # noqa: F401  (register tables on the metadata)
 
-    SQLModel.metadata.create_all(get_engine())
+    engine = get_engine()
+    SQLModel.metadata.create_all(engine)
+    moved = _migrate_nutrition_to_entries(engine)
+    if moved:
+        log.info("Migrated %s daily nutrition row(s) into intake_entries.", moved)
 
 
 def get_session() -> Session:
