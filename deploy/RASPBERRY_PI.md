@@ -17,7 +17,7 @@ is no inbound firewall rule, no port forward, and no public IP.
 > builds, the server reaches `healthy` in six seconds under compose, binds only
 > to loopback, and passes all 39 smoke assertions. `garmin-sync` was *not* run —
 > it would spend a real Garmin login, and that rate limit is per account with
-> only time clearing it. Step 4 below is therefore the first time that container
+> only time clearing it. Step 5 below is therefore the first time that container
 > has ever executed.
 
 ## 1. Google OAuth client
@@ -68,7 +68,44 @@ CLOUDFLARE_TUNNEL_TOKEN=eyJ...
 `SOMA_BASE_URL` is pinned rather than derived from `x-forwarded-host`, so a
 spoofed header cannot redirect the OAuth flow somewhere else.
 
-## 4. First Garmin login
+## 4. Registry access
+
+The image lives at `ghcr.io/aidiaz/soma`. The package is private because the
+repository is, and the Pi is refused without credentials — an anonymous manifest
+request returns `403`, not a redirect to a public copy.
+
+This has to happen **before** the next step, not before step 6. `garmin-auth`
+runs through `docker compose run`, which pulls the image, so an unauthenticated
+Pi fails there — after the tunnel is up and the secrets are in place, which is
+the least convenient moment to discover it.
+
+Create a **classic** personal access token with `read:packages` and nothing
+else. It only ever reads one package; a token that can also write is a token
+that can publish an image to your own deploy.
+
+```bash
+# On the Pi. --password-stdin so the token never reaches shell history.
+echo 'ghp_...' | docker login ghcr.io -u aidiaz --password-stdin
+```
+
+That writes `~/.docker/config.json`, **and watchtower reads the same file** when
+it runs under the `autoupdate` profile. One login covers both.
+
+Two things about the token, because the failure is quiet rather than loud:
+
+- If it expires, the Pi does not stop. It keeps running the image it already
+  has, and watchtower simply stops finding updates. The symptom is a Pi that
+  works fine and silently falls behind. Set a calendar reminder rather than
+  trusting yourself to notice.
+- `docker logout ghcr.io` and re-running the login is the whole rotation.
+
+Confirm it worked before moving on:
+
+```bash
+docker pull ghcr.io/aidiaz/soma:latest
+```
+
+## 5. First Garmin login
 
 The sync worker only ever logs in with saved tokens — it never sends a password,
 because a credential login is what risks the per-account lockout. So the token
@@ -85,7 +122,7 @@ It prompts for the password and the MFA code, then writes tokens to the
 agent does nothing; only time clears it. `garmin-auth` refuses to retry inside a
 15-minute cooldown for that reason. If you see a 429, wait — do not loop.
 
-## 5. Bring the stack up
+## 6. Bring the stack up
 
 ```bash
 docker compose -f compose.pi.yaml up -d
@@ -103,7 +140,7 @@ To backfill by hand:
 docker compose -f compose.pi.yaml run --rm garmin-sync garmin-sync --days 365 --skip-existing
 ```
 
-## 6. Connect Claude Code
+## 7. Connect Claude Code
 
 ```bash
 claude mcp add --transport http soma https://soma.hwhub.dev/mcp
@@ -113,7 +150,7 @@ No `--client-id` and no `--callback-port`: the server publishes a
 `registration_endpoint`, so the client registers itself dynamically. The first
 tool call opens a Google sign-in.
 
-## 7. Checking on it
+## 8. Checking on it
 
 The `coverage` block on `get_training_week` is the honest answer to "is my data
 current?" — it names the days it has no data for. A nightly sync that quietly
@@ -126,7 +163,7 @@ docker compose -f compose.pi.yaml exec server python -c \
    print(json.dumps(get_training_week()['coverage'], indent=2))"
 ```
 
-## 8. Updating
+## 9. Updating
 
 Today the Pi pulls. CI builds a multi-architecture image and pushes it to ghcr;
 the Pi either gets restarted by hand or polls with the optional `watchtower`
@@ -135,6 +172,11 @@ profile:
 ```bash
 docker compose -f compose.pi.yaml pull && docker compose -f compose.pi.yaml up -d
 ```
+
+Both routes pull from a private registry, so both depend on the login from
+step 4 still being valid. If that token has expired, `docker compose pull`
+fails visibly but watchtower does not — it just stops finding updates, and the
+Pi keeps serving the image it already has.
 
 Watchtower is a stopgap: it polls, and it gives no logs in Actions, no approval
 step and no rollback. The intended replacement is a self-hosted runner on the Pi
