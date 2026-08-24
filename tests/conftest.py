@@ -8,10 +8,11 @@ both, on the way in and on the way out.
 
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 
 import pytest
 
+from traindb.clock import today as utc_today
 from traindb.config import Settings, settings
 from traindb.db import get_session, init_db, reset_engine
 from traindb.models import Activity, Body, DailyHealth, Nutrition
@@ -64,7 +65,7 @@ def seeded(db):
     Deliberately incomplete — three days of health, two of food — because the
     coverage reporting is only meaningful when some days are genuinely missing.
     """
-    today = date.today()
+    today = utc_today()
     monday = today - timedelta(days=today.weekday() + 7)
     days = [monday, monday + timedelta(days=1), monday + timedelta(days=2)]
     prior_monday = monday - timedelta(days=7)

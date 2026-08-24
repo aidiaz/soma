@@ -7,9 +7,9 @@ from fastapi.testclient import TestClient
 from fastmcp.server.auth.providers.google import GoogleProvider
 from fastmcp.server.auth.providers.jwt import StaticTokenVerifier
 
+from traindb.config import settings
 from traindb.serve.app import InsecureConfigError, build_http_auth, create_app
 from traindb.serve.oauth import AllowlistEmptyError
-from traindb.config import settings
 
 
 @pytest.fixture

@@ -27,12 +27,13 @@ import subprocess
 import sys
 import tempfile
 import time
-from datetime import date
 from typing import Any
 
 import httpx
 from fastmcp import Client
 from fastmcp.client.transports import StreamableHttpTransport
+
+from traindb.clock import today as utc_today
 
 EXPECTED_TOOLS = {
     "get_training_week",
@@ -103,13 +104,20 @@ def start_server(log_path: pathlib.Path, port: int, token: str, db_path: pathlib
 
 def wait_for_health(base: str, timeout_s: int = 45) -> bool:
     deadline = time.time() + timeout_s
+    last: Exception | None = None
     while time.time() < deadline:
         try:
             if httpx.get(f"{base}/health", timeout=3).status_code == 200:
                 return True
-        except Exception:  # noqa: BLE001 - not up yet is the normal case here
-            pass
+        except Exception as exc:  # noqa: BLE001 - not up yet is the normal case here
+            # Kept rather than swallowed. A connection refused on every attempt
+            # and a TLS failure on every attempt both time out identically, and
+            # the log alone does not distinguish them — the process may never
+            # have got far enough to write one.
+            last = exc
         time.sleep(0.5)
+    if last is not None:
+        print(f"  last error contacting {base}/health: {last!r}", file=sys.stderr)
     return False
 
 
@@ -167,7 +175,7 @@ async def _check_tools(r: Results, url: str, token: str) -> None:
         r.check("every tool is documented", not undocumented, f"missing: {undocumented}")
 
         r.start("writes")
-        today = date.today().isoformat()
+        today = utc_today().isoformat()
         food = (
             await client.call_tool(
                 "log_nutrition",

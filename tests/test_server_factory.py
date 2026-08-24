@@ -74,7 +74,7 @@ async def test_no_tool_reaches_garmin():
     # layer imports queries only. A tool that called Garmin would need a client.
     import inspect
 
-    import traindb.serve.server as server
+    from traindb.serve import server
 
     source = inspect.getsource(server)
     for vendor in ("garminconnect", "garmin.client", "garmin.sync", "wahoo"):

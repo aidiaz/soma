@@ -19,9 +19,9 @@ import uvicorn
 from fastapi import FastAPI
 from fastmcp.server.auth.providers.jwt import StaticTokenVerifier
 
-from traindb.serve.oauth import build_auth
 from traindb.config import settings
 from traindb.db import init_db
+from traindb.serve.oauth import build_auth
 from traindb.serve.server import SCOPE, build_mcp
 
 log = logging.getLogger("traindb.serve.app")

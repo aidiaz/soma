@@ -29,6 +29,7 @@ from typing import Any
 
 from garminconnect import Garmin, GarminConnectTooManyRequestsError
 
+from traindb.clock import UTC, today
 from traindb.config import settings
 from traindb.db import get_session, init_db
 from traindb.ingest.garmin.client import get_client
@@ -85,18 +86,31 @@ def _pick(data: Any, *keys: str, default: Any = None) -> Any:
 
 
 def _parse_dt(value: Any) -> datetime | None:
+    """A Garmin timestamp to a naive wall-clock datetime.
+
+    Naive on purpose, and it is not an oversight the linter should fix.
+    ``map_activity`` prefers ``startTimeLocal`` and derives the training date
+    from it, so that a 23:30 ride counts towards that day rather than the next
+    one. Attaching a timezone here would move exactly the boundary that field
+    is chosen to pin. That question is separate from what :mod:`traindb.clock`
+    answers, which is what day it is *now*.
+    """
     if value is None:
         return None
     if isinstance(value, (int, float)):
         try:
-            return datetime.fromtimestamp(value / 1000)  # Garmin epoch millis
+            # Epoch millis are an absolute instant, so rendering them as a wall
+            # clock needs a zone. UTC, matching traindb.clock. Without it the
+            # zone was whatever the process happened to run in, and the same
+            # payload produced a different date on the Pi than on a laptop.
+            return datetime.fromtimestamp(value / 1000, tz=UTC).replace(tzinfo=None)
         except (OverflowError, OSError, ValueError):
             return None
     if isinstance(value, str):
         cleaned = value.replace("Z", "").replace("T", " ").strip()
         for fmt in ("%Y-%m-%d %H:%M:%S.%f", "%Y-%m-%d %H:%M:%S"):
             try:
-                return datetime.strptime(cleaned, fmt)
+                return datetime.strptime(cleaned, fmt)  # noqa: DTZ007 - see docstring
             except ValueError:
                 continue
     return None
@@ -286,7 +300,7 @@ def sync(
     init_db()
     client = get_client()
     name = client.get_full_name() or getattr(client, "display_name", "account")
-    end = date.today()
+    end = today()
     start = end - timedelta(
         days=days_back if days_back is not None else settings.garmin_sync_days_back
     )

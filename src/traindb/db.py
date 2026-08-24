@@ -25,7 +25,7 @@ BUSY_TIMEOUT_MS = 5_000
 _engine: Engine | None = None
 
 
-def connect(dbapi_connection, connection_record) -> None:  # noqa: ANN001 - SQLAlchemy event signature
+def connect(dbapi_connection, connection_record) -> None:
     """Apply the PRAGMAs every new connection needs.
 
     ``journal_mode`` is a property of the file and persists, but re-stating it is

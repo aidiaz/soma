@@ -47,11 +47,15 @@ def test_parse_dt_reads_garmin_epoch_millis():
 
 
 def test_parse_dt_reads_a_zulu_string():
-    assert _parse_dt("2026-03-14T07:30:00Z") == datetime(2026, 3, 14, 7, 30)
+    # Naive on both sides: _parse_dt keeps Garmin's wall clock rather than
+    # re-zoning it, so that a late-evening ride stays on its own training day.
+    assert _parse_dt("2026-03-14T07:30:00Z") == datetime(2026, 3, 14, 7, 30)  # noqa: DTZ001
 
 
 def test_parse_dt_reads_fractional_seconds():
-    assert _parse_dt("2026-03-14 07:30:00.500") == datetime(2026, 3, 14, 7, 30, 0, 500_000)
+    assert _parse_dt("2026-03-14 07:30:00.500") == datetime(  # noqa: DTZ001
+        2026, 3, 14, 7, 30, 0, 500_000
+    )
 
 
 def test_parse_dt_returns_none_for_junk():

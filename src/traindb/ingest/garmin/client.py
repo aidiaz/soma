@@ -22,7 +22,7 @@ def get_client() -> Garmin:
     garmin = Garmin()  # no credentials -> token-only login, no SSO password POST
     try:
         garmin.login(tokenstore)
-    except Exception as exc:  # noqa: BLE001 - re-raised as a clear, actionable error
+    except Exception as exc:
         raise NotAuthenticatedError(
             f"Could not authenticate from saved tokens at {tokenstore!r}. "
             "Tokens are missing or expired — run `garmin-auth` (in the container: "

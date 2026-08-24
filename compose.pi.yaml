@@ -23,6 +23,10 @@ services:
       TRAINDB_HOST: 0.0.0.0
       TRAINDB_DB_PATH: /app/data/traindb.db
       TRAINDB_GARMIN_TOKENSTORE: /app/data/garmin_tokens
+      # Stated rather than inherited. traindb.clock decides the training day in
+      # UTC; pinning it here means a base image that ships a different default
+      # cannot silently move that boundary.
+      TZ: UTC
     volumes:
       - traindb-data:/app/data
     restart: unless-stopped
@@ -44,6 +48,7 @@ services:
     environment:
       TRAINDB_DB_PATH: /app/data/traindb.db
       TRAINDB_GARMIN_TOKENSTORE: /app/data/garmin_tokens
+      TZ: UTC
     volumes:
       - traindb-data:/app/data
     # Compose has no scheduler, so the loop is the schedule. --skip-existing
