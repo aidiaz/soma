@@ -197,9 +197,17 @@ already built and tested, so the order inverted.
    expose full 4DP or only FTP and zones; are SYSTM plans reachable via OAuth;
    does a personal-use OAuth app get approved; does a SYSTM-uploaded ride feed
    Garmin's Body Battery.
-4. **Unverified:** the Docker image has never been built. No Docker daemon was
-   available, so `Dockerfile`, `compose.pi.yaml` and the deploy doc are
-   unexercised. Build it before trusting the deploy.
+4. **Image verified 2026-08-24, on `linux/arm64` — the Pi's architecture.** It
+   builds; `curl_cffi` 0.15.0 imports on aarch64, which was the risk; all five
+   console scripts resolve bare, which is what the `PATH` line in the
+   `Dockerfile` exists to guarantee. Under compose the server reaches `healthy`
+   in six seconds with no restarts, publishes only `127.0.0.1:8181`, and passes
+   all 39 smoke assertions. The empty-allowlist fail-safe was exercised in the
+   image: OAuth on with no allowlist exits 1 rather than serving, and with an
+   allowlist it builds `_AllowlistedGoogle` scoped to the email scope alone.
+   **Still unexercised: `garmin-sync`.** Running it would spend a real Garmin
+   login, and that rate limit is per account with only time clearing it. It has
+   never run in a container. Verify it on the Pi, where a cooldown costs less.
 5. Repository hygiene landed: LICENSE, CHANGELOG, dependabot, issue and PR
    templates, CODEOWNERS, and a separate agent identity (`soma-sentry[bot]`).
    **Branch protection is unavailable** — a free private repo returns 403 from
