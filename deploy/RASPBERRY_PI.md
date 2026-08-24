@@ -91,6 +91,28 @@ echo 'ghp_...' | docker login ghcr.io -u aidiaz --password-stdin
 That writes `~/.docker/config.json`, **and watchtower reads the same file** when
 it runs under the `autoupdate` profile. One login covers both.
 
+### If `gh` is already logged in on the Pi
+
+The obvious shortcut is to reuse it, and it does not work unmodified — `gh`'s
+default scopes do not include `read:packages`, so ghcr refuses the token with an
+authentication error that says nothing about scopes:
+
+```bash
+gh auth refresh -s read:packages          # opens a browser
+gh auth token | docker login ghcr.io -u aidiaz --password-stdin
+```
+
+**Prefer the dedicated token above anyway.** `docker login` stores whatever it
+is given, so this route parks a token carrying `repo` and `workflow` in
+`~/.docker/config.json` on a machine that sits in a cupboard and is reachable
+from the internet through a tunnel. A read-only packages token that leaks costs
+you a container image nobody wants. A `repo`-scoped one costs you the source and
+the ability to modify CI.
+
+There is a second, quieter reason: `gh` manages its own token and can rotate it,
+while `docker login` captured a copy. When they diverge, pulls start failing for
+a reason nothing on the Pi explains.
+
 Two things about the token, because the failure is quiet rather than loud:
 
 - If it expires, the Pi does not stop. It keeps running the image it already
