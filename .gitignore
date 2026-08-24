@@ -1,0 +1,23 @@
+# Secrets. Match every .env variant — a `.env.bak` or `.env.local` holds the
+# same credentials as `.env` and was the thing a bare `.env` rule missed.
+.env
+.env.*
+!.env.example
+
+# Local data: the SQLite database and the Garmin OAuth token store.
+/data/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# python
+__pycache__/
+*.py[cod]
+.venv/
+.ruff_cache/
+.pytest_cache/
+.basedpyright/
+dist/
+build/
+*.egg-info/

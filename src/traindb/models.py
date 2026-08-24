@@ -1,0 +1,164 @@
+"""SQLModel tables.
+
+One database, four writers, one read surface. The shape follows from a single
+question — "here is my week, what should change?" — which needs rides, sleep,
+food and body measurements correlated by date. So ``date`` is the join key
+everywhere and is indexed on the one table where it is not the primary key.
+
+Tables that ingest a vendor payload keep it whole in a ``raw`` column. Vendors
+rename fields without notice; ``raw`` is what makes the old value recoverable
+afterwards, which matters because Garmin ages data out and a resync may not be
+able to fetch it back.
+"""
+
+from __future__ import annotations
+
+import datetime as dt
+from typing import Any
+
+from sqlalchemy import JSON, Column, UniqueConstraint
+from sqlmodel import Field, SQLModel
+
+
+class Activity(SQLModel, table=True):
+    """A completed session, from any source.
+
+    The primary key is a surrogate rather than the vendor's id: the same ride
+    can arrive from both Wahoo and Garmin, and those are two rows describing one
+    effort, not a collision to be resolved at write time. Uniqueness is on
+    ``(source, external_id)`` — scoping it that way means two vendors are free
+    to number their records however they like.
+    """
+
+    __tablename__ = "activities"
+    __table_args__ = (UniqueConstraint("source", "external_id", name="uq_activity_source_id"),)
+
+    id: int | None = Field(default=None, primary_key=True)
+    source: str = Field(index=True)  # "wahoo" | "garmin"
+    external_id: str
+    started_at: dt.datetime | None = None
+    # The join key to every other table. Derived from started_at in local time,
+    # because a 23:30 ride belongs to that day's training, not the next one's.
+    date: dt.date = Field(index=True)
+    sport: str | None = None
+    duration_s: float | None = None
+    tss: float | None = None
+    avg_power: float | None = None
+    np: float | None = None
+    avg_hr: float | None = None
+    max_hr: float | None = None
+    work_kj: float | None = None
+    raw: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+
+
+class DailyHealth(SQLModel, table=True):
+    """One row per day. Garmin is the only source for every field here.
+
+    Collapsed from three tables — sleep, HRV and daily stats each held one row
+    per day keyed on the same date, so they were a single row wearing three
+    hats. Anything Garmin returns beyond these columns stays in ``raw``.
+    """
+
+    __tablename__ = "daily_health"
+
+    date: dt.date = Field(primary_key=True)
+    sleep_score: int | None = None
+    sleep_duration_s: int | None = None
+    hrv_status: str | None = None
+    hrv_ms: float | None = None
+    resting_hr: int | None = None
+    body_battery_high: int | None = None
+    body_battery_low: int | None = None
+    steps: int | None = None
+    raw: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+
+
+class Nutrition(SQLModel, table=True):
+    """Manual, and permanently so. No sensor knows what you ate.
+
+    Written through the MCP server, so reporting a day's food in conversation is
+    what creates the record — the gap this closes is the one where the log
+    depended on remembering to type it in later.
+    """
+
+    __tablename__ = "nutrition"
+
+    date: dt.date = Field(primary_key=True)
+    kcal: int | None = None
+    protein_g: float | None = None
+    fat_g: float | None = None
+    carbs_g: float | None = None
+    creatine: bool = False
+    magnesium: bool = False
+    vitamin_d: bool = False
+    probiotic: bool = False
+    note: str | None = None
+
+
+class Body(SQLModel, table=True):
+    """Weekly measurements. Waist is the primary signal, not weight."""
+
+    __tablename__ = "body"
+
+    date: dt.date = Field(primary_key=True)
+    weight_kg: float | None = None
+    waist_cm: float | None = None
+
+
+class FitnessTest(SQLModel, table=True):
+    """4DP and FTP results.
+
+    Class deliberately not named ``Test``: pytest collects any class matching
+    ``Test*`` that a test module imports, and would report it as a broken test.
+    """
+
+    __tablename__ = "tests"
+
+    id: int | None = Field(default=None, primary_key=True)
+    date: dt.date = Field(index=True)
+    test_type: str | None = None  # "ftp" | "4dp" | "ramp"
+    ftp: int | None = None
+    map_w: int | None = None
+    ac_w: int | None = None
+    nm_w: int | None = None
+    lthr: int | None = None
+    weight_kg: float | None = None
+    rider_type: str | None = None
+
+
+class PlannedWorkout(SQLModel, table=True):
+    """A session that was scheduled, as opposed to one that happened.
+
+    Populated only if SYSTM plan data turns out to be reachable. Unused until
+    then, and the tables around it do not depend on it.
+    """
+
+    __tablename__ = "planned_workouts"
+    __table_args__ = (UniqueConstraint("source", "external_id", name="uq_planned_source_id"),)
+
+    id: int | None = Field(default=None, primary_key=True)
+    source: str = Field(index=True)
+    external_id: str
+    date: dt.date = Field(index=True)
+    name: str | None = None
+    workout_type: str | None = None
+    duration_s: float | None = None
+    target_summary: str | None = None
+
+
+class CalendarSync(SQLModel, table=True):
+    """What makes calendar sync idempotent.
+
+    Without this map, every run creates duplicates. With it, each run is a
+    reconcile: absent here means create, hash changed means update in place,
+    gone from the source means delete.
+    """
+
+    __tablename__ = "calendar_sync"
+
+    workout_id: str = Field(primary_key=True)
+    google_event_id: str
+    last_synced_at: dt.datetime | None = None
+    # Hash of the fields that appear in the calendar entry. Comparing it is how
+    # a run tells "unchanged" from "edited" without diffing every field.
+    content_hash: str | None = None

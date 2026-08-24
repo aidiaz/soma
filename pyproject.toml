@@ -1,0 +1,52 @@
+[project]
+name = "traindb"
+version = "0.1.0"
+description = "Personal training data system: rides, sleep, HRV, food and body, correlated by date and served over MCP"
+readme = "README.md"
+# garminconnect 0.3.11 itself requires >=3.12, so this floor is not ours to lower.
+requires-python = ">=3.12"
+dependencies = [
+    "fastmcp>=2.13",
+    "garminconnect>=0.3.11",
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "sqlmodel>=0.0.22",
+    "pydantic-settings>=2.5",
+]
+
+[project.scripts]
+traindb = "traindb.serve.server:main"
+traindb-http = "traindb.serve.app:main"
+garmin-auth = "traindb.ingest.garmin.auth:main"
+garmin-sync = "traindb.ingest.garmin.sync:main"
+garmin-remap = "traindb.ingest.garmin.remap:main"
+
+[dependency-groups]
+dev = [
+    "ruff>=0.6",
+    "basedpyright>=1.18",
+    "pytest>=8",
+    "pytest-asyncio>=0.24",
+    "httpx>=0.27",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/traindb"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Tests build a Settings() per-test against a temp DB; auto mode saves marking
+# every async auth test individually.
+asyncio_mode = "auto"
+filterwarnings = ["ignore::DeprecationWarning"]
+
+[tool.basedpyright]
+typeCheckingMode = "standard"

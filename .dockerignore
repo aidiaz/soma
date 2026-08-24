@@ -1,0 +1,32 @@
+# Keep the build context small — it is streamed to the Pi over SSH when
+# building natively on ARM.
+
+.git
+.gitignore
+.github
+
+# Never bake secrets or personal data into the image.
+.env
+data/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Rebuilt inside the image
+.venv
+__pycache__/
+*.py[cod]
+.ruff_cache/
+.pytest_cache/
+.basedpyright/
+dist/
+build/
+*.egg-info/
+
+# Not needed at runtime
+tests/
+deploy/
+Makefile
+CLAUDE.md
+.claude/

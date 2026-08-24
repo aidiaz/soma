@@ -1,0 +1,97 @@
+# Raspberry Pi stack. See deploy/RASPBERRY_PI.md for the full procedure.
+#
+# One database, one serving layer, one ingestion worker per vendor. Wahoo slots
+# in beside garmin-sync when its OAuth approval lands; nothing else changes.
+#
+# No service publishes a port. The only way in is the Cloudflare Tunnel, which
+# dials out from the Pi — so the Pi needs no inbound firewall rule, no port
+# forward, and no public IP.
+
+name: traindb
+
+services:
+  # The MCP server. Reads the database and writes nutrition and body entries;
+  # it never contacts a vendor.
+  server:
+    image: ${TRAINDB_IMAGE:-ghcr.io/aidiaz/traindb:latest}
+    build: .
+    container_name: traindb-server
+    env_file: [.env]
+    environment:
+      # Bind all interfaces so cloudflared can reach it over the compose
+      # network. Still not reachable from outside the Pi — no port is published.
+      TRAINDB_HOST: 0.0.0.0
+      TRAINDB_DB_PATH: /app/data/traindb.db
+      TRAINDB_GARMIN_TOKENSTORE: /app/data/garmin_tokens
+    volumes:
+      - traindb-data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health').read()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  # Garmin ingestion — the fragile source, isolated so that when it breaks,
+  # nothing else stops. It is the only source for sleep, HRV, Body Battery and
+  # resting HR.
+  garmin-sync:
+    image: ${TRAINDB_IMAGE:-ghcr.io/aidiaz/traindb:latest}
+    build: .
+    container_name: traindb-garmin-sync
+    env_file: [.env]
+    environment:
+      TRAINDB_DB_PATH: /app/data/traindb.db
+      TRAINDB_GARMIN_TOKENSTORE: /app/data/garmin_tokens
+    volumes:
+      - traindb-data:/app/data
+    # Compose has no scheduler, so the loop is the schedule. --skip-existing
+    # makes each run cheap: only the last couple of days are re-fetched.
+    #
+    # A failed run must not end the loop: expired tokens and Garmin 429s are both
+    # recoverable, and a dead container would stop the retries that fix them. But
+    # swallowing the exit code with a bare `|| true` once hid a "command not
+    # found" through a whole deploy, so the failure is logged with its code. A
+    # run that fails every cycle is then visible in `docker compose logs`.
+    command:
+      - sh
+      - -c
+      - 'while true; do garmin-sync --skip-existing || echo "garmin-sync FAILED (exit $?) — retrying next cycle"; sleep "${TRAINDB_GARMIN_INTERVAL_S:-86400}"; done'
+    restart: unless-stopped
+    depends_on:
+      server:
+        condition: service_healthy
+
+  # Token-based tunnel. Create it in the Cloudflare Zero Trust dashboard, route
+  # the public hostname to http://server:8000, and put the token in .env.
+  #
+  # Do NOT add a Cloudflare Access policy to this hostname. MCP OAuth discovery
+  # (/.well-known/*) and dynamic client registration (/register) must answer
+  # without a login; Access replies to them with an HTML login page and the
+  # client fails before the OAuth flow starts.
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: traindb-cloudflared
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    env_file: [.env]
+    restart: unless-stopped
+    depends_on:
+      server:
+        condition: service_healthy
+
+  # Optional: polls ghcr and restarts on a new image. Opt in with
+  #   docker compose -f compose.pi.yaml --profile autoupdate up -d
+  # This is a stopgap, not a deploy flow — no logs in Actions, no approval step,
+  # no rollback. See deploy/RASPBERRY_PI.md.
+  watchtower:
+    image: containrrr/watchtower:latest
+    container_name: traindb-watchtower
+    profiles: [autoupdate]
+    command: --interval 3600 --cleanup traindb-server traindb-garmin-sync
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    restart: unless-stopped
+
+volumes:
+  traindb-data:
