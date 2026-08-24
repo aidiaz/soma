@@ -1,0 +1,36 @@
+# The tier 3 path list. A pull request touching any of these needs a
+# line-by-line read by the repository owner before it merges.
+#
+# Single source of truth, on purpose. This list used to live twice — as a grep
+# pattern in tier-gate.yml and as a table in docs/WORKFLOW.md — and the failure
+# mode of that arrangement is the worst one available: a path added to the
+# document but not the pattern produces a gate that is documented and does not
+# fire. tier-gate.yml builds its pattern from this file, and a test asserts the
+# document lists exactly these entries.
+#
+# Matched as a prefix against paths from `git diff --name-only`, so a trailing
+# slash covers a whole directory. Interpreted literally except that `.` is
+# escaped, so do not put regular expressions here.
+#
+# Adding a line is itself a tier 3 change, because .github/ is on the list.
+
+# Authorisation and configuration: a mistake here is invisible until someone
+# who should not have access has it.
+src/soma/serve/oauth.py
+src/soma/config.py
+
+# Secrets and the credential-minting script.
+.env.example
+scripts/agent_token.sh
+
+# Deployment and CI: a mistake here reaches the Pi, or disables the checks
+# that would have caught the next one.
+.github/
+deploy/
+compose.pi.yaml
+Dockerfile
+
+# The rules an agent works under. These ship no code, but changing them
+# changes every future pull request.
+CLAUDE.md
+docs/WORKFLOW.md

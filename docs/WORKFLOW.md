@@ -59,7 +59,14 @@ is what makes review enforceable.
 | | Identity | Used for |
 |---|---|---|
 | Owner | `aidiaz` | Reviewing, approving, merging, deciding |
-| Agent | `soma-agent[bot]` | Branches, commits, PRs, issue comments |
+| Agent | `soma-sentry[bot]` | Branches, commits, PRs, issue comments |
+
+Git history carries an older login. The App was created as `traindb-agent` and
+renamed with the project, so commits authored before 2026-08-24 read
+`traindb-agent[bot]`. Same App, same installation, same numeric id — GitHub
+binds those to the id, not the name, which is why the rename cost nothing.
+Renaming does not rewrite past authorship, and rewriting history to tidy that
+would be a worse trade than living with two names.
 
 The agent authenticates as a GitHub App installation, minting a one-hour token
 per operation with `scripts/agent_token.sh`. The App's private key lives at
@@ -76,7 +83,7 @@ Be honest about the mechanism, because a gate that does not hold is worse than
 no gate — it is a gate you stop checking.
 
 - **`.github/CODEOWNERS` blocks.** GitHub does not let the author of a PR
-  approve it. Because the agent authors as `soma-agent[bot]` and the owner
+  approve it. Because the agent authors as `soma-sentry[bot]` and the owner
   reviews as `aidiaz`, "require review from Code Owners" is satisfiable in the
   normal way — and unsatisfiable by the agent alone. This is the primary gate.
 - **`.github/workflows/tier-gate.yml` is the visible check.** It compares the
