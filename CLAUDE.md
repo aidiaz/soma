@@ -105,13 +105,23 @@ Do not "correct" these without re-checking.
    therefore UTC) than on a laptop. Because date is the join key, that decided
    which row a write landed on: `log_nutrition` with no `day` could record
    dinner against tomorrow, and the tools are upsert-only, so it could not be
-   corrected through the interface. `clock.today()` is now the only answer, it
-   is UTC, and `compose.pi.yaml` pins `TZ` to match. The consequence was
-   accepted knowingly on 2026-08-24: the training day rolls over at midnight
-   UTC. Found by ruff's `DTZ` rules, which is the argument for adopting them.
+   corrected through the interface. `clock.today()` is now the only answer.
+   Found by ruff's `DTZ` rules, which is the argument for adopting them.
+
+   **The zone was UTC for one afternoon, then reversed to local (#33).** The
+   reversal is deliberate and not a correction of a mistake: UTC was chosen with
+   its cost written down — an evening meal west of UTC lands on tomorrow — and
+   that cost was acceptable while the system held only training data, where it
+   bites occasionally. Intake tracking makes it constant, because evening is
+   when people eat. `SOMA_TIMEZONE` now decides, validated at startup so a typo
+   fails loudly rather than at the first write. `clock.now()` stays an aware UTC
+   instant: timestamps are absolute, only the calendar day is local.
+
    Note what the fix is *not*: `ingest/garmin/sync._parse_dt` stays naive on
    purpose, because Garmin's `startTimeLocal` is what makes a 23:30 ride count
-   as that day's training. Do not "fix" it to UTC.
+   as that day's training, and `ingest/wahoo/sync` derives each activity's date
+   from the zone it happened in. A ride done while travelling belongs to the day
+   it happened *there*, which can differ from `clock.today()`. Both are right.
 5. **A field named `date` shadowing the `date` type.** `models.py` imports
    `datetime as dt` and annotates `dt.date` for this reason. Reverting to
    `from datetime import date` makes every model fail to build at import.

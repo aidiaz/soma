@@ -16,6 +16,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Annotated, Any
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
@@ -32,6 +33,11 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         extra="ignore",
     )
+
+    # --- What "today" means ---
+    # Every date in the database is a join key, so this decides which row a
+    # write lands on. IANA name, e.g. America/Santiago. See soma.clock.
+    timezone: str = "UTC"
 
     # --- Serving ---
     host: str = "127.0.0.1"
@@ -78,6 +84,24 @@ class Settings(BaseSettings):
     # Refresh this many seconds before the access token actually expires, so a
     # long sync cannot have one die underneath it mid-page.
     wahoo_refresh_margin_s: float = 300.0
+
+    @field_validator("timezone")
+    @classmethod
+    def _known_zone(cls, value: str) -> str:
+        """Reject an unknown zone at startup rather than at first write.
+
+        A typo here does not raise where it is set; it raises the first time
+        something asks what day it is, which on the sync worker is the middle of
+        a run and on the server is the first tool call.
+        """
+        try:
+            ZoneInfo(value)
+        except (ZoneInfoNotFoundError, ValueError) as exc:
+            raise ValueError(
+                f"SOMA_TIMEZONE={value!r} is not a known IANA timezone "
+                "(expected something like 'America/Santiago' or 'UTC')."
+            ) from exc
+        return value
 
     @field_validator("allowed_emails", mode="before")
     @classmethod

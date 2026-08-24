@@ -23,10 +23,11 @@ services:
       SOMA_HOST: 0.0.0.0
       SOMA_DB_PATH: /app/data/soma.db
       SOMA_GARMIN_TOKENSTORE: /app/data/garmin_tokens
-      # Stated rather than inherited. soma.clock decides the training day in
-      # UTC; pinning it here means a base image that ships a different default
-      # cannot silently move that boundary.
-      TZ: UTC
+      # SOMA_TIMEZONE decides the join key (see soma.clock); this only sets
+      # what the container's own clock and log timestamps read as. Kept in step
+      # deliberately — reading a log in one zone while rows land in another is
+      # how an off-by-one day goes unnoticed.
+      TZ: ${SOMA_TIMEZONE:-UTC}
     ports:
       # Bound to 127.0.0.1 on purpose. A bare `8181:8000` publishes on every
       # interface, which on a home network means anyone on the wifi reaches the
@@ -54,7 +55,7 @@ services:
     environment:
       SOMA_DB_PATH: /app/data/soma.db
       SOMA_GARMIN_TOKENSTORE: /app/data/garmin_tokens
-      TZ: UTC
+      TZ: ${SOMA_TIMEZONE:-UTC}
     volumes:
       - soma-data:/app/data
     # Compose has no scheduler, so the loop is the schedule. --skip-existing
@@ -86,7 +87,7 @@ services:
     environment:
       SOMA_DB_PATH: /app/data/soma.db
       SOMA_WAHOO_TOKENSTORE: /app/data/wahoo_tokens.json
-      TZ: UTC
+      TZ: ${SOMA_TIMEZONE:-UTC}
     volumes:
       - soma-data:/app/data
     # Hourly rather than daily: a trainer session should be readable the evening
