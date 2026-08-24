@@ -1,0 +1,59 @@
+name: "Bug report"
+description: "Something behaves incorrectly."
+title: "[bug] "
+labels: ["type:bug"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What's wrong
+      description: What happened, versus what you expected.
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: How to reproduce
+      description: >
+        The tool call, CLI command, or HTTP request. A bug reproducible by a
+        command can be turned into a failing test, which is what fixes it.
+      placeholder: |
+        1. `make smoke`
+        2. Call `get_training_week` for 2026-08-17
+        3. `ramp_pct` comes back 0.0, expected null
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: >
+        Environment (local, container, Pi), log lines, the date range involved,
+        and whether the underlying row exists in SQLite.
+    validations:
+      required: false
+
+  - type: dropdown
+    id: risk
+    attributes:
+      label: Risk tier of the likely fix
+      description: >
+        A guess is fine. Tier 3 paths are gated regardless of what is selected
+        here — see docs/WORKFLOW.md.
+      options:
+        - "1 — docs, tests, refactor with no behaviour change"
+        - "2 — new tool, query, metric, ingestion mapping"
+        - "3 — auth, config, secrets, deploy"
+      default: 1
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: agent
+    attributes:
+      label: Delegation
+      options:
+        - label: "Ready for an agent to pick up unattended (add the `agent:ready` label)"
+        - label: "Needs a human — interactive credentials, an external account, or a judgement call"

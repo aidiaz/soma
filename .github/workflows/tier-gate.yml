@@ -1,0 +1,67 @@
+# Makes a tier 3 change visible as one. CODEOWNERS cannot block a merge on a
+# single-owner repository, because GitHub does not let an author approve their
+# own pull request — so the gate is a check plus a human-applied label instead.
+#
+# Red means: the owner has not read this diff line by line yet.
+name: Tier gate
+
+on:
+  pull_request:
+    # Applying the label must re-run the check, or the gate could never turn
+    # green without an unrelated push.
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+jobs:
+  tier-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Classify changed paths
+        id: classify
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          changed=$(git diff --name-only "$BASE_SHA" "$HEAD_SHA")
+          echo "Changed files:"
+          echo "$changed" | sed 's/^/  /'
+
+          # Kept in step with the table in docs/WORKFLOW.md. Changing this list
+          # is itself a tier 3 change, because .github/ is on it.
+          tier3=$(echo "$changed" | grep -E \
+            '^(src/traindb/serve/oauth\.py|src/traindb/config\.py|\.github/|deploy/|compose\.pi\.yaml|Dockerfile|\.env\.example|CLAUDE\.md|docs/WORKFLOW\.md)' \
+            || true)
+
+          if [ -n "$tier3" ]; then
+            echo "tier3=true" >> "$GITHUB_OUTPUT"
+            echo "Tier 3 paths touched:"
+            echo "$tier3" | sed 's/^/  /'
+          else
+            echo "tier3=false" >> "$GITHUB_OUTPUT"
+            echo "No tier 3 paths touched."
+          fi
+
+      - name: Require a human review for tier 3
+        if: steps.classify.outputs.tier3 == 'true'
+        env:
+          LABELS: ${{ toJson(github.event.pull_request.labels.*.name) }}
+        run: |
+          set -euo pipefail
+          if echo "$LABELS" | grep -q '"reviewed:tier3"'; then
+            echo "reviewed:tier3 present. A human states they read this diff."
+            exit 0
+          fi
+          cat <<'MSG'
+          This PR touches tier 3 paths: authorisation, configuration, secrets,
+          deployment, CI, or the rules an agent works under.
+
+          It needs a line-by-line read by the repository owner, who then applies
+          the `reviewed:tier3` label. An agent must not apply it.
+
+          See docs/WORKFLOW.md.
+          MSG
+          exit 1

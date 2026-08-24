@@ -1,0 +1,3 @@
+# Force every issue through a template. Blank issues are how "make it better"
+# tickets appear, and those cannot be picked up unattended.
+blank_issues_enabled: false

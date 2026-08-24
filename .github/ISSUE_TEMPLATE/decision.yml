@@ -1,0 +1,63 @@
+name: "Decision"
+description: "A question that must be answered before work can start. Yours, not an agent's."
+title: "[decision] "
+labels: ["type:decision", "needs-decision"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this when acceptance criteria cannot be written yet. A decision has
+        no failing test to write — that is exactly what distinguishes it from a
+        task, and why an agent must not close it by guessing.
+
+  - type: textarea
+    id: question
+    attributes:
+      label: The question
+      description: One sentence, ending in a question mark.
+      placeholder: "When a ride arrives from both Garmin and Wahoo, which TSS wins?"
+    validations:
+      required: true
+
+  - type: textarea
+    id: options
+    attributes:
+      label: Options
+      description: >
+        Each option with its consequence. An option nobody would pick still
+        belongs here if it was considered — it records why not.
+      value: |
+        - **A** — . Consequence:
+        - **B** — . Consequence:
+    validations:
+      required: true
+
+  - type: textarea
+    id: blocks
+    attributes:
+      label: What this blocks
+      description: Issues, phases, or files that cannot proceed until this is settled.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: reversibility
+    attributes:
+      label: Reversibility
+      description: >
+        Governs how much deliberation is worth spending. A reversible choice
+        made quickly beats an irreversible one made slowly.
+      options:
+        - "Reversible — change it later at the cost of a migration or a resync"
+        - "Costly — reversible, but historical data would be lost or wrong"
+        - "One-way door — cannot be undone once external parties see it"
+    validations:
+      required: true
+
+  - type: textarea
+    id: decision
+    attributes:
+      label: Decision
+      description: Filled in when answered. Record the reason, not only the choice.
+    validations:
+      required: false
