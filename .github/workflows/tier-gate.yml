@@ -30,11 +30,15 @@ jobs:
           echo "Changed files:"
           echo "$changed" | sed 's/^/  /'
 
-          # Kept in step with the table in docs/WORKFLOW.md. Changing this list
-          # is itself a tier 3 change, because .github/ is on it.
-          tier3=$(echo "$changed" | grep -E \
-            '^(src/soma/serve/oauth\.py|src/soma/config\.py|\.github/|deploy/|compose\.pi\.yaml|Dockerfile|\.env\.example|scripts/agent_token\.sh|CLAUDE\.md|docs/WORKFLOW\.md)' \
-            || true)
+          # The list lives in .github/tier3-paths.txt and nowhere else. Built
+          # here rather than restated, so it cannot drift from the documents
+          # that describe it — tests/test_tier3_paths.py fails if it does.
+          # Only `.` is escaped: entries are literal prefixes, not regexes.
+          pattern=$(grep -vE '^[[:space:]]*(#|$)' .github/tier3-paths.txt \
+            | sed 's/\./\\./g' | paste -sd'|' -)
+          echo "Tier 3 pattern: ^($pattern)"
+
+          tier3=$(echo "$changed" | grep -E "^($pattern)" || true)
 
           if [ -n "$tier3" ]; then
             echo "tier3=true" >> "$GITHUB_OUTPUT"

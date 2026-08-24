@@ -38,13 +38,15 @@ because there is no stated condition it either meets or misses.
 ## Risk tiers
 
 Tier is decided by **the paths a PR touches**, not by the author's judgement of
-how risky it feels.
+how risky it feels. The tier 3 column below is generated from
+`.github/tier3-paths.txt`, which is the only place the list is maintained;
+`tests/test_tier3_paths.py` fails if this table drifts from it.
 
 | Tier | Covers | Owner effort |
 |---|---|---|
 | **1** | docs, tests, refactors with no behaviour change, dependency bumps | Merge on green. Seconds. |
 | **2** | new MCP tool, query, metric, ingestion mapping | Read the PR description and the `make smoke` output. Minutes. |
-| **3** | `serve/oauth.py`, `config.py`, `.github/`, `deploy/`, `Dockerfile`, `compose.pi.yaml`, `.env.example`, `scripts/agent_token.sh`, `CLAUDE.md`, this file | Line by line. Never merged by the agent. |
+| **3** | `src/soma/serve/oauth.py`, `src/soma/config.py`, `.env.example`, `scripts/agent_token.sh`, `.github/`, `deploy/`, `compose.pi.yaml`, `Dockerfile`, `CLAUDE.md`, `docs/WORKFLOW.md` | Line by line. Never merged by the agent. |
 
 Tier 3 is where a mistake is either invisible or irreversible: an allowlist that
 silently admits everyone, a secret in a committed file, a deploy that cannot be
