@@ -1,0 +1,37 @@
+version: 2
+
+updates:
+  # garminconnect is the fragile dependency: it wraps an API nobody publishes a
+  # contract for. Seeing its releases early is worth the noise, and
+  # `make contract` runs on every PR, so a breaking bump fails loudly here
+  # rather than silently at 03:00 on the Pi.
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels: ["type:task", "deps", "agent:ready"]
+    commit-message:
+      prefix: "deps"
+    groups:
+      # One PR for the routine churn. Individual PRs are reserved for the
+      # dependencies that can actually break the build.
+      dev-dependencies:
+        dependency-type: "development"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    labels: ["type:task", "deps", "agent:ready"]
+    commit-message:
+      prefix: "ci"
+
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    labels: ["type:task", "deps"]
+    commit-message:
+      prefix: "docker"

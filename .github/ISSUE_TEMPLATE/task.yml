@@ -1,0 +1,66 @@
+name: "Task"
+description: "Work with a clear outcome. The default template."
+title: "[task] "
+labels: ["type:task"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Definition of ready:** this issue is ready when someone could write a
+        failing test from it. If you cannot state the acceptance criteria as
+        something checkable, it is a decision rather than a task — use the
+        Decision template instead.
+
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Outcome
+      description: What should be true when this is done. Not how to build it.
+      placeholder: "get_training_week reports the number of planned sessions that were actually completed."
+    validations:
+      required: true
+
+  - type: textarea
+    id: criteria
+    attributes:
+      label: Acceptance criteria
+      description: >
+        Checkable statements. Each one should map to a test or a command whose
+        output settles it. These get copied into the PR as a checklist.
+      value: |
+        - [ ]
+        - [ ] Covered by a test in `tests/`
+        - [ ] `make ci` green
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Why this matters, prior art, related files, anything already ruled out.
+    validations:
+      required: false
+
+  - type: dropdown
+    id: risk
+    attributes:
+      label: Risk tier
+      description: >
+        Governs review depth. Tier 3 paths are CODEOWNERS-gated regardless of
+        what is selected here — see docs/WORKFLOW.md.
+      options:
+        - "1 — docs, tests, refactor with no behaviour change"
+        - "2 — new tool, query, metric, ingestion mapping"
+        - "3 — auth, config, secrets, deploy"
+      default: 1
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: agent
+    attributes:
+      label: Delegation
+      options:
+        - label: "Ready for an agent to pick up unattended (add the `agent:ready` label)"
+        - label: "Needs a human — interactive credentials, an external account, or a judgement call"

@@ -185,12 +185,30 @@ already built and tested, so the order inverted.
 4. **Unverified:** the Docker image has never been built. No Docker daemon was
    available, so `Dockerfile`, `compose.pi.yaml` and the deploy doc are
    unexercised. Build it before trusting the deploy.
-5. Missing repository hygiene: LICENSE, CHANGELOG, dependabot.
+5. Repository hygiene landed: LICENSE, CHANGELOG, dependabot, issue and PR
+   templates, CODEOWNERS. Still open: branch protection on `main` is not
+   configured, so `tier-gate` is a visible check rather than a merge blocker.
 
 **The real risk is not technical.** The proposal says it plainly: building this
 is more fun than logging breakfast, and the system is worthless without the
 logging. `log_nutrition` exists to make the logging cheap, not to make it
 optional.
+
+## How work moves
+
+`docs/WORKFLOW.md` is the process, and it binds an agent working in this repo.
+The parts that change what you do:
+
+- **An issue is ready when you could write a failing test from it.** If you
+  cannot, it is a decision, not a task. Do not close it by choosing — label it
+  `needs-decision` and hand it back.
+- **Tier is decided by the paths a PR touches**, not by how risky the change
+  feels. `serve/oauth.py`, `config.py`, `.github/`, `deploy/`, `Dockerfile`,
+  `compose.pi.yaml`, `.env.example`, `CLAUDE.md` and `docs/WORKFLOW.md` are
+  tier 3: a human reads them line by line.
+- **Never apply `reviewed:tier3`, and never apply `agent:ready` to your own
+  issue.** Both labels are a human stating they checked something. Applying one
+  yourself makes the audit trail a lie.
 
 ## Style
 
