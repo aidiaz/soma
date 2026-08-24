@@ -10,6 +10,8 @@
 # called something else. Source is never a credential, and a rule that silently
 # hides code is its own kind of bug — hence the .py exception.
 *token*
+*secret*
+*credential*
 *.pem
 *.key
 !*.py
