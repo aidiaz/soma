@@ -17,6 +17,7 @@ dependencies = [
     # that will not import without it is how a sync worker breaks on an
     # unrelated upgrade.
     "httpx>=0.27",
+    "alembic>=1.19.1",
 ]
 
 [project.scripts]
@@ -27,6 +28,7 @@ garmin-sync = "soma.ingest.garmin.sync:main"
 garmin-remap = "soma.ingest.garmin.remap:main"
 wahoo-auth = "soma.ingest.wahoo.auth:main"
 wahoo-sync = "soma.ingest.wahoo.sync:main"
+soma-migrate = "soma.migrate:main"
 
 [dependency-groups]
 dev = [
