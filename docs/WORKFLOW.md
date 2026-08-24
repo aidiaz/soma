@@ -44,35 +44,73 @@ how risky it feels.
 |---|---|---|
 | **1** | docs, tests, refactors with no behaviour change, dependency bumps | Merge on green. Seconds. |
 | **2** | new MCP tool, query, metric, ingestion mapping | Read the PR description and the `make smoke` output. Minutes. |
-| **3** | `serve/oauth.py`, `config.py`, `.github/`, `deploy/`, `Dockerfile`, `compose.pi.yaml`, `.env.example`, `CLAUDE.md`, this file | Line by line. Never merged by the agent. |
+| **3** | `serve/oauth.py`, `config.py`, `.github/`, `deploy/`, `Dockerfile`, `compose.pi.yaml`, `.env.example`, `scripts/agent_token.sh`, `CLAUDE.md`, this file | Line by line. Never merged by the agent. |
 
 Tier 3 is where a mistake is either invisible or irreversible: an allowlist that
 silently admits everyone, a secret in a committed file, a deploy that cannot be
 rolled back. Tier 1 and 2 mistakes surface as a failing test or a wrong number
 in a weekly review, and both are cheap to fix.
 
+### Two identities, and why it matters
+
+The owner and the agent are **separate GitHub accounts**, and that single fact
+is what makes review enforceable.
+
+| | Identity | Used for |
+|---|---|---|
+| Owner | `aidiaz` | Reviewing, approving, merging, deciding |
+| Agent | `traindb-agent[bot]` | Branches, commits, PRs, issue comments |
+
+The agent authenticates as a GitHub App installation, minting a one-hour token
+per operation with `scripts/agent_token.sh`. The App's private key lives at
+`~/.config/traindb/agent-app.pem`, outside the repository, and the script
+refuses to run if it is readable by anyone but its owner.
+
+It is deliberately **not** wired into a git credential helper. That would
+rewrite the owner's own pushes as the bot, collapsing the two identities back
+into one and undoing the point.
+
 ### What actually enforces tier 3
 
 Be honest about the mechanism, because a gate that does not hold is worse than
 no gate — it is a gate you stop checking.
 
-- **`.github/CODEOWNERS` routes, it does not block.** GitHub does not allow the
-  author of a pull request to approve it. On a single-owner repository, every
-  PR — agent-authored or not — is authored by that owner's account, so
-  "require review from Code Owners" cannot be satisfied in the normal way. What
-  CODEOWNERS does deliver is that a tier 3 change is *labelled as one*, on the
-  PR, automatically, before anyone reads the diff.
+- **`.github/CODEOWNERS` blocks.** GitHub does not let the author of a PR
+  approve it. Because the agent authors as `traindb-agent[bot]` and the owner
+  reviews as `aidiaz`, "require review from Code Owners" is satisfiable in the
+  normal way — and unsatisfiable by the agent alone. This is the primary gate.
 - **`.github/workflows/tier-gate.yml` is the visible check.** It compares the
   changed paths against the tier 3 list and fails unless the PR carries the
-  `reviewed:tier3` label. Red means "the owner has not read this yet".
-- **The rule the agent follows: never apply `reviewed:tier3`.** That label is
-  applied by a human, and applying it means "I read the diff line by line". It
-  is deliberately a label rather than an approval because it is *auditable* —
-  the label event names who applied it and when.
+  `reviewed:tier3` label. It is now a second signal rather than the only one:
+  red on the checks list is easier to notice than a missing approval.
+- **The rule the agent follows: never apply `reviewed:tier3`.** The App's token
+  can technically apply it. Only this rule prevents that, and the label event
+  names who applied it — so the audit trail survives even if the rule does not.
 
-If you enable branch protection on `main` with `tier-gate` as a required check,
-the gate becomes mechanical rather than conventional. Do that once you trust the
-rest of the loop.
+### Both gates are advisory, and that is a decision rather than an oversight
+
+Branch protection and rulesets are **not available on this repository**. Checked
+on 2026-08-24, not assumed:
+
+```
+GET /repos/aidiaz/traindb/rulesets                   403
+GET /repos/aidiaz/traindb/branches/main/protection   403
+"Upgrade to GitHub Pro or make this repository public to enable this feature."
+```
+
+So nothing here can stop a merge: not a red `tier-gate`, not a missing
+code-owner approval. The owner decided on 2026-08-24 to accept that rather than
+pay for Pro or make the repository public — see #6, which stays open as the
+trigger if either changes.
+
+What follows is the only rule that matters while this holds:
+
+> **Do not merge past a red `tier-gate` or a missing approval.** The gate is
+> discipline, not machinery. The moment it is bypassed once out of convenience,
+> it stops being read at all, and everything above becomes decoration.
+
+The design is worth keeping anyway, because turning enforcement on later is a
+settings change and no code change.
 
 ## Labels
 

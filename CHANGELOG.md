@@ -14,6 +14,10 @@ holds it.
 
 - Repository workflow: issue templates, PR template, CODEOWNERS, dependabot,
   and `docs/WORKFLOW.md` describing the risk tiers and who merges what.
+- A separate agent identity, `traindb-agent[bot]`, authenticating as a GitHub
+  App. Because the agent no longer authors as the owner, a code-owner review
+  requirement is satisfiable by the owner and unsatisfiable by the agent, which
+  turns tier 3 from a convention into something GitHub can enforce.
 - LICENSE (MIT) and this changelog.
 
 ## [0.1.0] - 2026-08-24
