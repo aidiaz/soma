@@ -26,8 +26,8 @@ from typing import Any
 
 from sqlmodel import col, select
 
-from traindb.db import get_session
-from traindb.models import Activity
+from soma.db import get_session
+from soma.models import Activity
 
 CTL_TAU = 42
 ATL_TAU = 7

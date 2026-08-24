@@ -1,5 +1,5 @@
 [project]
-name = "traindb"
+name = "soma"
 version = "0.1.0"
 description = "Personal training data system: rides, sleep, HRV, food and body, correlated by date and served over MCP"
 readme = "README.md"
@@ -15,11 +15,11 @@ dependencies = [
 ]
 
 [project.scripts]
-traindb = "traindb.serve.server:main"
-traindb-http = "traindb.serve.app:main"
-garmin-auth = "traindb.ingest.garmin.auth:main"
-garmin-sync = "traindb.ingest.garmin.sync:main"
-garmin-remap = "traindb.ingest.garmin.remap:main"
+soma = "soma.serve.server:main"
+soma-http = "soma.serve.app:main"
+garmin-auth = "soma.ingest.garmin.auth:main"
+garmin-sync = "soma.ingest.garmin.sync:main"
+garmin-remap = "soma.ingest.garmin.remap:main"
 
 [dependency-groups]
 dev = [
@@ -39,7 +39,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/traindb"]
+packages = ["src/soma"]
 
 [tool.ruff]
 line-length = 100

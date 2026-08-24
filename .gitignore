@@ -4,6 +4,17 @@
 .env.*
 !.env.example
 
+# Bare credential files. A live Cloudflare tunnel token arrived in the working
+# tree as `tunnel-token`, untracked and unignored, one `git add -A` from being
+# committed. Matched by shape rather than by name, because the next one will be
+# called something else. Source is never a credential, and a rule that silently
+# hides code is its own kind of bug — hence the .py exception.
+*token*
+*.pem
+*.key
+!*.py
+!scripts/agent_token.sh
+
 # Local data: the SQLite database and the Garmin OAuth token store.
 /data/
 *.db

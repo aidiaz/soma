@@ -1,6 +1,6 @@
 """Assert the Garmin library surface the sync worker depends on still exists.
 
-The sync worker degrades quietly: :func:`traindb.ingest.garmin.sync._fetch` turns a failing
+The sync worker degrades quietly: :func:`soma.ingest.garmin.sync._fetch` turns a failing
 endpoint into a logged warning so one dead call cannot abort a whole run. That
 is right at runtime and dangerous in CI, because a method that vanished upstream
 produces the same output as a genuine rest day — no rows, no error. This check
@@ -24,12 +24,7 @@ from importlib import metadata
 from garminconnect import Garmin
 
 SYNC = (
-    pathlib.Path(__file__).resolve().parents[1]
-    / "src"
-    / "traindb"
-    / "ingest"
-    / "garmin"
-    / "sync.py"
+    pathlib.Path(__file__).resolve().parents[1] / "src" / "soma" / "ingest" / "garmin" / "sync.py"
 )
 
 # Called outside sync.py's per-day loop, so the AST scan below will not see them.

@@ -33,7 +33,7 @@ import httpx
 from fastmcp import Client
 from fastmcp.client.transports import StreamableHttpTransport
 
-from traindb.clock import today as utc_today
+from soma.clock import today as utc_today
 
 EXPECTED_TOOLS = {
     "get_training_week",
@@ -86,16 +86,16 @@ def start_server(log_path: pathlib.Path, port: int, token: str, db_path: pathlib
     """Launch a real uvicorn process against a throwaway database."""
     env = {
         **os.environ,
-        "TRAINDB_OAUTH_ENABLED": "false",
-        "TRAINDB_API_TOKEN": token,
-        "TRAINDB_HOST": "127.0.0.1",
-        "TRAINDB_PORT": str(port),
-        "TRAINDB_DB_PATH": str(db_path),
-        "TRAINDB_GARMIN_TOKENSTORE": str(db_path.parent / "tokens"),
+        "SOMA_OAUTH_ENABLED": "false",
+        "SOMA_API_TOKEN": token,
+        "SOMA_HOST": "127.0.0.1",
+        "SOMA_PORT": str(port),
+        "SOMA_DB_PATH": str(db_path),
+        "SOMA_GARMIN_TOKENSTORE": str(db_path.parent / "tokens"),
     }
     handle = log_path.open("w")
     return subprocess.Popen(
-        [sys.executable, "-m", "traindb.serve.app"],
+        [sys.executable, "-m", "soma.serve.app"],
         env=env,
         stdout=handle,
         stderr=subprocess.STDOUT,
@@ -303,7 +303,7 @@ def main() -> int:
             url, token = args.url, args.token
             base = url.rsplit("/mcp", 1)[0]
         else:
-            tmpdir = tempfile.TemporaryDirectory(prefix="traindb-smoke-")
+            tmpdir = tempfile.TemporaryDirectory(prefix="soma-smoke-")
             token = secrets.token_urlsafe(24)
             log_path = pathlib.Path(tmpdir.name) / "server.log"
             db_path = pathlib.Path(tmpdir.name) / "smoke.db"

@@ -7,7 +7,7 @@ terminates TLS at the edge and opens no inbound port on the Pi.
 needs ``/.well-known/oauth-protected-resource/mcp`` and
 ``/.well-known/oauth-authorization-server`` to be fetchable *without* a login.
 Access answers them with an HTML login page, and the client gives up before the
-OAuth flow can start. The email allowlist in :mod:`traindb.serve.oauth`
+OAuth flow can start. The email allowlist in :mod:`soma.serve.oauth`
 is what keeps other people out.
 """
 
@@ -19,12 +19,12 @@ import uvicorn
 from fastapi import FastAPI
 from fastmcp.server.auth.providers.jwt import StaticTokenVerifier
 
-from traindb.config import settings
-from traindb.db import init_db
-from traindb.serve.oauth import build_auth
-from traindb.serve.server import SCOPE, build_mcp
+from soma.config import settings
+from soma.db import init_db
+from soma.serve.oauth import build_auth
+from soma.serve.server import SCOPE, build_mcp
 
-log = logging.getLogger("traindb.serve.app")
+log = logging.getLogger("soma.serve.app")
 
 
 class InsecureConfigError(RuntimeError):
@@ -46,13 +46,13 @@ def build_http_auth():
     if settings.api_token:
         log.warning("Auth: static bearer token. Intended for local development only.")
         return StaticTokenVerifier(
-            tokens={settings.api_token: {"client_id": "traindb", "scopes": [SCOPE]}},
+            tokens={settings.api_token: {"client_id": "soma", "scopes": [SCOPE]}},
             required_scopes=[SCOPE],
         )
     raise InsecureConfigError(
-        "No authentication configured. Set TRAINDB_GOOGLE_CLIENT_ID / "
-        "TRAINDB_GOOGLE_CLIENT_SECRET / TRAINDB_BASE_URL / TRAINDB_ALLOWED_EMAILS for "
-        "OAuth, or TRAINDB_API_TOKEN for a local bearer token."
+        "No authentication configured. Set SOMA_GOOGLE_CLIENT_ID / "
+        "SOMA_GOOGLE_CLIENT_SECRET / SOMA_BASE_URL / SOMA_ALLOWED_EMAILS for "
+        "OAuth, or SOMA_API_TOKEN for a local bearer token."
     )
 
 
@@ -64,7 +64,7 @@ def create_app() -> FastAPI:
     # tunnel reconnects.
     mcp_app = mcp.http_app(path="/mcp", stateless_http=True)
 
-    app = FastAPI(title="traindb", lifespan=mcp_app.lifespan)
+    app = FastAPI(title="soma", lifespan=mcp_app.lifespan)
 
     @app.get("/health")
     def health() -> dict:

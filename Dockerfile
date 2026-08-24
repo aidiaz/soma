@@ -26,14 +26,14 @@ RUN mkdir -p /app/data
 # `uv run <script>` works, and a bare `garmin-sync` in a compose command fails
 # with "not found" — which that loop's `|| true` then hides for a whole deploy.
 ENV PATH="/app/.venv/bin:$PATH" \
-    TRAINDB_DB_PATH=/app/data/traindb.db \
-    TRAINDB_GARMIN_TOKENSTORE=/app/data/garmin_tokens \
-    TRAINDB_HOST=0.0.0.0 \
-    TRAINDB_PORT=8000
+    SOMA_DB_PATH=/app/data/soma.db \
+    SOMA_GARMIN_TOKENSTORE=/app/data/garmin_tokens \
+    SOMA_HOST=0.0.0.0 \
+    SOMA_PORT=8000
 
 EXPOSE 8000
 
 # Default to the HTTP server. Each ingestion worker is the same image with a
 # different command (see compose.pi.yaml), which keeps them in lockstep — a
 # mapper change can never be deployed to one and not the other.
-CMD ["traindb-http"]
+CMD ["soma-http"]

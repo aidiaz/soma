@@ -1,8 +1,8 @@
 """Runtime configuration, loaded from environment / .env.
 
-Everything uses the ``TRAINDB_`` prefix. Vendor-specific settings carry the
-vendor in the name — ``TRAINDB_GARMIN_EMAIL``, and later
-``TRAINDB_WAHOO_CLIENT_ID`` — so a second ingestion source adds keys rather than
+Everything uses the ``SOMA_`` prefix. Vendor-specific settings carry the
+vendor in the name — ``SOMA_GARMIN_EMAIL``, and later
+``SOMA_WAHOO_CLIENT_ID`` — so a second ingestion source adds keys rather than
 reorganising them.
 
 Three identities live here and are easy to confuse:
@@ -20,14 +20,14 @@ from typing import Annotated, Any
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
-# Project root = two levels up from this file (src/traindb/config.py).
+# Project root = two levels up from this file (src/soma/config.py).
 ROOT = Path(__file__).resolve().parents[2]
 DATA_DIR = ROOT / "data"
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_prefix="TRAINDB_",
+        env_prefix="SOMA_",
         env_file=".env",
         env_file_encoding="utf-8",
         extra="ignore",
@@ -36,7 +36,7 @@ class Settings(BaseSettings):
     # --- Serving ---
     host: str = "127.0.0.1"
     port: int = 8000
-    db_path: Path = DATA_DIR / "traindb.db"
+    db_path: Path = DATA_DIR / "soma.db"
 
     # --- Who may call this server ---
     # Static bearer token, for local development and stdio.

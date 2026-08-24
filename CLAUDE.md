@@ -11,7 +11,7 @@ related to the strongbyform projects.
 Deployment target: a Raspberry Pi behind a Cloudflare Tunnel, with Google OAuth
 and an email allowlist.
 
-**`traindb` is a working name.** Replace it before the first OAuth redirect URI
+**`soma` is a working name.** Replace it before the first OAuth redirect URI
 is registered — that is the point of no return, and it has not been reached.
 
 ## The rule that shapes everything
@@ -24,7 +24,7 @@ a context window, which is the problem this replaced.
 ## Architecture: separate by layer, not by vendor
 
 ```
-src/traindb/
+src/soma/
   models.py            schema; date is the join key
   clock.py             what "today" means; UTC, in one place
   db.py                SQLite engine + WAL pragmas
@@ -83,7 +83,7 @@ Do not "correct" these without re-checking.
   test asserting both paths answer 200 unauthenticated.
 - The server publishes a `registration_endpoint`, so dynamic client registration
   works. Claude Code needs no `--client-id` or `--callback-port`.
-- The Google redirect URI to register is `<TRAINDB_BASE_URL>/auth/callback`.
+- The Google redirect URI to register is `<SOMA_BASE_URL>/auth/callback`.
 
 ## Bugs already fixed. Do not reintroduce them.
 
@@ -172,8 +172,10 @@ recover the value with `garmin-remap` rather than resyncing.
 `deploy/RASPBERRY_PI.md` holds the procedure. Summary:
 
 - `compose.pi.yaml` runs `server`, `garmin-sync`, `cloudflared`, and optionally
-  `watchtower` (behind the `autoupdate` profile). No port is published to the
-  host. Compose has no scheduler, so the sync service is a shell loop.
+  `watchtower` (behind the `autoupdate` profile). The server publishes
+  `127.0.0.1:8181` — loopback only. Dropping the `127.0.0.1:` prefix would
+  publish on every interface and let anyone on the same wifi reach the server
+  directly, bypassing Cloudflare, the Google sign-in and the allowlist. Compose has no scheduler, so the sync service is a shell loop.
 - `.github/workflows/ci.yml` lints, tests on 3.12 and 3.13, builds a
   multi-architecture image and pushes to ghcr. The contract check also runs
   weekly on a cron.
@@ -199,7 +201,7 @@ already built and tested, so the order inverted.
    available, so `Dockerfile`, `compose.pi.yaml` and the deploy doc are
    unexercised. Build it before trusting the deploy.
 5. Repository hygiene landed: LICENSE, CHANGELOG, dependabot, issue and PR
-   templates, CODEOWNERS, and a separate agent identity (`traindb-agent[bot]`).
+   templates, CODEOWNERS, and a separate agent identity (`soma-agent[bot]`).
    **Branch protection is unavailable** — a free private repo returns 403 from
    the rulesets and protection endpoints. Decided 2026-08-24 to accept advisory
    gates rather than pay for Pro or go public (#6). So `tier-gate` and

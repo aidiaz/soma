@@ -12,16 +12,16 @@ from datetime import datetime, timedelta
 
 import pytest
 
-from traindb.clock import today as utc_today
-from traindb.config import Settings, settings
-from traindb.db import get_session, init_db, reset_engine
-from traindb.models import Activity, Body, DailyHealth, Nutrition
+from soma.clock import today as utc_today
+from soma.config import Settings, settings
+from soma.db import get_session, init_db, reset_engine
+from soma.models import Activity, Body, DailyHealth, Nutrition
 
 
 @pytest.fixture
 def db(tmp_path, monkeypatch):
     """An empty database, isolated per test."""
-    monkeypatch.setattr(settings, "db_path", tmp_path / "traindb.db")
+    monkeypatch.setattr(settings, "db_path", tmp_path / "soma.db")
     reset_engine()
     init_db()
     yield
@@ -47,7 +47,7 @@ def make_settings(**overrides) -> Settings:
         "oauth_enabled": True,
         "google_client_id": "test-client-id.apps.googleusercontent.com",
         "google_client_secret": "test-secret",
-        "base_url": "https://traindb.example.test",
+        "base_url": "https://soma.example.test",
         "allowed_emails": {"owner@example.com"},
     }
     base.update(overrides)

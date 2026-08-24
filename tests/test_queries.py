@@ -6,10 +6,10 @@ from datetime import date, timedelta
 
 import pytest
 
-from traindb.clock import today as utc_today
-from traindb.db import get_session
-from traindb.models import Body, DailyHealth, Nutrition
-from traindb.serve.queries import (
+from soma.clock import today as utc_today
+from soma.db import get_session
+from soma.models import Body, DailyHealth, Nutrition
+from soma.serve.queries import (
     get_health_trend,
     get_recent_activities,
     get_tests,

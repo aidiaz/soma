@@ -23,7 +23,7 @@ from garminconnect import (
     GarminConnectTooManyRequestsError,
 )
 
-from traindb.config import settings
+from soma.config import settings
 
 
 class CooldownActive(RuntimeError):

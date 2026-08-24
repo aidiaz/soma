@@ -1,4 +1,4 @@
-# traindb
+# soma
 
 A personal training data system. Rides, sleep, HRV, food and body measurements,
 correlated by date in one database and served to Claude over
@@ -34,7 +34,7 @@ instead of fifteen minutes of pasting.
 ## Layout
 
 ```
-src/traindb/
+src/soma/
   models.py            the schema — date is the join key
   db.py  metrics.py    storage, and CTL/ATL/TSB + weekly ramp
   ingest/garmin/       the fragile source, isolated
@@ -48,8 +48,8 @@ src/traindb/
 |---|---|---|---|
 | Garmin auth | `garmin-auth` | Rarely, interactive | Yes (login + MFA) |
 | Garmin sync | `garmin-sync` | Nightly | Yes (read-only) |
-| MCP server | `traindb` | Always on (stdio) | **No** |
-| MCP server | `traindb-http` | Always on (HTTP) | **No** |
+| MCP server | `soma` | Always on (stdio) | **No** |
+| MCP server | `soma-http` | Always on (HTTP) | **No** |
 
 ## Tools
 
@@ -84,15 +84,15 @@ uv run garmin-sync        # first backfill; takes many minutes
 Then connect over stdio:
 
 ```bash
-claude mcp add traindb -- uv run --directory /path/to/traindb traindb
+claude mcp add soma -- uv run --directory /path/to/soma soma
 ```
 
 Or over HTTP with a bearer token for testing:
 
 ```bash
-uv run traindb-http
-claude mcp add --transport http traindb http://127.0.0.1:8000/mcp \
-  --header "Authorization: Bearer $TRAINDB_API_TOKEN"
+uv run soma-http
+claude mcp add --transport http soma http://127.0.0.1:8000/mcp \
+  --header "Authorization: Bearer $SOMA_API_TOKEN"
 ```
 
 In production the HTTP server uses Google OAuth plus an email allowlist. See

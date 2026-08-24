@@ -5,8 +5,8 @@ from __future__ import annotations
 import math
 from datetime import date, datetime, timedelta
 
-from traindb.db import get_session
-from traindb.metrics import (
+from soma.db import get_session
+from soma.metrics import (
     ATL_TAU,
     CTL_TAU,
     _alpha,
@@ -15,7 +15,7 @@ from traindb.metrics import (
     tss_ramp,
     week_tss,
 )
-from traindb.models import Activity
+from soma.models import Activity
 
 START = date(2026, 1, 5)  # a Monday
 

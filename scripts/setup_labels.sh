@@ -7,7 +7,7 @@
 # means anything.
 set -euo pipefail
 
-repo="${1:-aidiaz/traindb}"
+repo="${1:-aidiaz/soma}"
 
 label() {
   gh label create "$1" --repo "$repo" --color "$2" --description "$3" --force >/dev/null

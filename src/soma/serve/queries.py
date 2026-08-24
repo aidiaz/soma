@@ -20,10 +20,10 @@ from typing import Any
 
 from sqlmodel import col, desc, select
 
-from traindb.clock import today
-from traindb.db import get_session
-from traindb.metrics import training_load_series, tss_ramp
-from traindb.models import Activity, Body, DailyHealth, FitnessTest, Nutrition
+from soma.clock import today
+from soma.db import get_session
+from soma.metrics import training_load_series, tss_ramp
+from soma.models import Activity, Body, DailyHealth, FitnessTest, Nutrition
 
 # How far back to warm the CTL/ATL EWMAs before reading them. CTL's time
 # constant is 42 days, so a shorter window reports fitness that is an artefact

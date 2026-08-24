@@ -1518,7 +1518,7 @@ wheels = [
 ]
 
 [[package]]
-name = "traindb"
+name = "soma"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [

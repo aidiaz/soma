@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import time
 
-from traindb.config import settings
-from traindb.ingest.garmin.auth import (
+from soma.config import settings
+from soma.ingest.garmin.auth import (
     cooldown_remaining,
     last_attempt_at,
     record_attempt,

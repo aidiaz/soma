@@ -7,28 +7,34 @@
 # dials out from the Pi — so the Pi needs no inbound firewall rule, no port
 # forward, and no public IP.
 
-name: traindb
+name: soma
 
 services:
   # The MCP server. Reads the database and writes nutrition and body entries;
   # it never contacts a vendor.
   server:
-    image: ${TRAINDB_IMAGE:-ghcr.io/aidiaz/traindb:latest}
+    image: ${SOMA_IMAGE:-ghcr.io/aidiaz/soma:latest}
     build: .
-    container_name: traindb-server
+    container_name: soma-server
     env_file: [.env]
     environment:
       # Bind all interfaces so cloudflared can reach it over the compose
       # network. Still not reachable from outside the Pi — no port is published.
-      TRAINDB_HOST: 0.0.0.0
-      TRAINDB_DB_PATH: /app/data/traindb.db
-      TRAINDB_GARMIN_TOKENSTORE: /app/data/garmin_tokens
-      # Stated rather than inherited. traindb.clock decides the training day in
+      SOMA_HOST: 0.0.0.0
+      SOMA_DB_PATH: /app/data/soma.db
+      SOMA_GARMIN_TOKENSTORE: /app/data/garmin_tokens
+      # Stated rather than inherited. soma.clock decides the training day in
       # UTC; pinning it here means a base image that ships a different default
       # cannot silently move that boundary.
       TZ: UTC
+    ports:
+      # Bound to 127.0.0.1 on purpose. A bare `8181:8000` publishes on every
+      # interface, which on a home network means anyone on the wifi reaches the
+      # server directly and bypasses Cloudflare, the Google sign-in and the
+      # allowlist. The loopback prefix is the whole security property.
+      - "127.0.0.1:8181:8000"
     volumes:
-      - traindb-data:/app/data
+      - soma-data:/app/data
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health').read()"]
@@ -41,16 +47,16 @@ services:
   # nothing else stops. It is the only source for sleep, HRV, Body Battery and
   # resting HR.
   garmin-sync:
-    image: ${TRAINDB_IMAGE:-ghcr.io/aidiaz/traindb:latest}
+    image: ${SOMA_IMAGE:-ghcr.io/aidiaz/soma:latest}
     build: .
-    container_name: traindb-garmin-sync
+    container_name: soma-garmin-sync
     env_file: [.env]
     environment:
-      TRAINDB_DB_PATH: /app/data/traindb.db
-      TRAINDB_GARMIN_TOKENSTORE: /app/data/garmin_tokens
+      SOMA_DB_PATH: /app/data/soma.db
+      SOMA_GARMIN_TOKENSTORE: /app/data/garmin_tokens
       TZ: UTC
     volumes:
-      - traindb-data:/app/data
+      - soma-data:/app/data
     # Compose has no scheduler, so the loop is the schedule. --skip-existing
     # makes each run cheap: only the last couple of days are re-fetched.
     #
@@ -62,7 +68,7 @@ services:
     command:
       - sh
       - -c
-      - 'while true; do garmin-sync --skip-existing || echo "garmin-sync FAILED (exit $?) — retrying next cycle"; sleep "${TRAINDB_GARMIN_INTERVAL_S:-86400}"; done'
+      - 'while true; do garmin-sync --skip-existing || echo "garmin-sync FAILED (exit $?) — retrying next cycle"; sleep "${SOMA_GARMIN_INTERVAL_S:-86400}"; done'
     restart: unless-stopped
     depends_on:
       server:
@@ -77,7 +83,7 @@ services:
   # client fails before the OAuth flow starts.
   cloudflared:
     image: cloudflare/cloudflared:latest
-    container_name: traindb-cloudflared
+    container_name: soma-cloudflared
     command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
     env_file: [.env]
     restart: unless-stopped
@@ -91,12 +97,12 @@ services:
   # no rollback. See deploy/RASPBERRY_PI.md.
   watchtower:
     image: containrrr/watchtower:latest
-    container_name: traindb-watchtower
+    container_name: soma-watchtower
     profiles: [autoupdate]
-    command: --interval 3600 --cleanup traindb-server traindb-garmin-sync
+    command: --interval 3600 --cleanup soma-server soma-garmin-sync
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     restart: unless-stopped
 
 volumes:
-  traindb-data:
+  soma-data:

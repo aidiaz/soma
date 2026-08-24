@@ -10,7 +10,7 @@ carries rides today; once Wahoo ingestion lands, activities move there and this
 worker drops from five endpoints to three.
 
 Design notes:
-- Token-only auth (see :mod:`traindb.ingest.garmin.client`), never a credential
+- Token-only auth (see :mod:`soma.ingest.garmin.client`), never a credential
   login — that is what risks the account lockout.
 - Every row keeps the untouched payload in ``raw``, so unmapped fields are never
   lost and mappings can be refined later without a resync.
@@ -29,13 +29,13 @@ from typing import Any
 
 from garminconnect import Garmin, GarminConnectTooManyRequestsError
 
-from traindb.clock import UTC, today
-from traindb.config import settings
-from traindb.db import get_session, init_db
-from traindb.ingest.garmin.client import get_client
-from traindb.models import Activity, DailyHealth
+from soma.clock import UTC, today
+from soma.config import settings
+from soma.db import get_session, init_db
+from soma.ingest.garmin.client import get_client
+from soma.models import Activity, DailyHealth
 
-log = logging.getLogger("traindb.ingest.garmin")
+log = logging.getLogger("soma.ingest.garmin")
 
 SOURCE = "garmin"
 
@@ -92,7 +92,7 @@ def _parse_dt(value: Any) -> datetime | None:
     ``map_activity`` prefers ``startTimeLocal`` and derives the training date
     from it, so that a 23:30 ride counts towards that day rather than the next
     one. Attaching a timezone here would move exactly the boundary that field
-    is chosen to pin. That question is separate from what :mod:`traindb.clock`
+    is chosen to pin. That question is separate from what :mod:`soma.clock`
     answers, which is what day it is *now*.
     """
     if value is None:
@@ -100,7 +100,7 @@ def _parse_dt(value: Any) -> datetime | None:
     if isinstance(value, (int, float)):
         try:
             # Epoch millis are an absolute instant, so rendering them as a wall
-            # clock needs a zone. UTC, matching traindb.clock. Without it the
+            # clock needs a zone. UTC, matching soma.clock. Without it the
             # zone was whatever the process happened to run in, and the same
             # payload produced a different date on the Pi than on a laptop.
             return datetime.fromtimestamp(value / 1000, tz=UTC).replace(tzinfo=None)
@@ -145,7 +145,7 @@ def map_activity(a: dict[str, Any]) -> Activity | None:
 
     ``activityTrainingLoad`` is mapped to ``tss``. They are not the same
     quantity — Garmin's is EPOC-derived — but they occupy the same role, and a
-    ramp computed from either is a ratio. See :mod:`traindb.metrics`.
+    ramp computed from either is a ratio. See :mod:`soma.metrics`.
     """
     activity_id = a.get("activityId")
     if activity_id is None:
@@ -347,12 +347,12 @@ def sync(
 
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-    parser = argparse.ArgumentParser(description="Sync Garmin data into traindb.")
+    parser = argparse.ArgumentParser(description="Sync Garmin data into soma.")
     parser.add_argument(
         "--days",
         type=int,
         default=None,
-        help="Days back to sync (default from TRAINDB_GARMIN_SYNC_DAYS_BACK).",
+        help="Days back to sync (default from SOMA_GARMIN_SYNC_DAYS_BACK).",
     )
     parser.add_argument(
         "--skip-existing",

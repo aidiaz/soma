@@ -10,8 +10,8 @@
 *                           @aidiaz
 
 # Tier 3 — authorisation, secrets, deployment, and the CI that gates the rest.
-/src/traindb/serve/oauth.py @aidiaz
-/src/traindb/config.py      @aidiaz
+/src/soma/serve/oauth.py @aidiaz
+/src/soma/config.py      @aidiaz
 /.github/                   @aidiaz
 /deploy/                    @aidiaz
 /compose.pi.yaml            @aidiaz

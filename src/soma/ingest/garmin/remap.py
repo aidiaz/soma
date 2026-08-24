@@ -1,6 +1,6 @@
 """Re-derive typed columns from stored ``raw`` payloads — no Garmin calls.
 
-Run this after improving a mapping in :mod:`traindb.ingest.garmin.sync` to
+Run this after improving a mapping in :mod:`soma.ingest.garmin.sync` to
 backfill already-synced rows in place. Safe to run repeatedly; it only rewrites
 typed columns from JSON already in the database.
 
@@ -8,7 +8,7 @@ This is the recovery path when Garmin renames a field, and the reason every
 ingested row keeps its payload whole. Garmin ages data out, so re-fetching may
 not be possible even when re-extracting still is.
 
-Writes go through :func:`traindb.ingest.garmin.sync._write`, so a mapping that
+Writes go through :func:`soma.ingest.garmin.sync._write`, so a mapping that
 regressed to extracting nothing leaves the existing row alone rather than
 flattening it into a placeholder.
 """
@@ -19,11 +19,11 @@ import logging
 
 from sqlmodel import col, select
 
-from traindb.db import get_session, init_db
-from traindb.ingest.garmin.sync import SOURCE, _write, map_activity, map_daily_health
-from traindb.models import Activity, DailyHealth
+from soma.db import get_session, init_db
+from soma.ingest.garmin.sync import SOURCE, _write, map_activity, map_daily_health
+from soma.models import Activity, DailyHealth
 
-log = logging.getLogger("traindb.ingest.garmin.remap")
+log = logging.getLogger("soma.ingest.garmin.remap")
 
 
 def remap() -> None:

@@ -11,8 +11,8 @@ from __future__ import annotations
 from conftest import make_settings
 from fastmcp.server.auth.providers.jwt import StaticTokenVerifier
 
-from traindb.serve.oauth import build_auth
-from traindb.serve.server import SCOPE, build_mcp
+from soma.serve.oauth import build_auth
+from soma.serve.server import SCOPE, build_mcp
 
 EXPECTED_TOOLS = {
     "get_training_week",
@@ -74,7 +74,7 @@ async def test_no_tool_reaches_garmin():
     # layer imports queries only. A tool that called Garmin would need a client.
     import inspect
 
-    from traindb.serve import server
+    from soma.serve import server
 
     source = inspect.getsource(server)
     for vendor in ("garminconnect", "garmin.client", "garmin.sync", "wahoo"):
