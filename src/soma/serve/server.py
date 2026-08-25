@@ -85,40 +85,52 @@ def build_mcp(auth: Any = None) -> FastMCP:
     # --- write — narrow and deliberate --------------------------------------
 
     @mcp.tool
-    def log_nutrition(
-        day: str | None = None,
+    def log_food(
         kcal: int | None = None,
         protein_g: float | None = None,
         fat_g: float | None = None,
         carbs_g: float | None = None,
-        creatine: bool = False,
-        magnesium: bool = False,
-        vitamin_d: bool = False,
-        probiotic: bool = False,
+        item: str | None = None,
+        qty: float | None = None,
+        unit: str | None = None,
         note: str | None = None,
+        day: str | None = None,
     ) -> dict:
-        """Record a day's food and supplements.
+        """Add one thing eaten. Appends — call it per meal, not per day.
 
         No sensor knows what you ate, so this half of the record is permanently
-        manual. Reporting a day's food in conversation is what should create the
-        entry — the gap this closes is the one where the log depended on
-        remembering to type it in later.
+        manual. Reporting food in conversation is what creates the entry.
 
-        `day` is an ISO date, defaulting to today. Upserts: logging the same day
-        again corrects it. There is no delete.
+        You do not need the day's running total: this adds to whatever is
+        already logged and returns the new total. Estimate the portion from the
+        label or the plate and pass numbers — nothing here looks food up.
+
+        Supplements use the same call with `qty` and `unit` and no macros:
+        1.5 scoops, 2 pills.
+
+        `day` is an ISO date, defaulting to today in the configured timezone.
+        There is no delete; a correction is a further entry.
         """
-        return queries.log_nutrition(
-            day=day,
+        return queries.log_food(
             kcal=kcal,
             protein_g=protein_g,
             fat_g=fat_g,
             carbs_g=carbs_g,
-            creatine=creatine,
-            magnesium=magnesium,
-            vitamin_d=vitamin_d,
-            probiotic=probiotic,
+            item=item,
+            qty=qty,
+            unit=unit,
             note=note,
+            day=day,
         )
+
+    @mcp.tool
+    def log_water(ml: int, note: str | None = None, day: str | None = None) -> dict:
+        """Add water, in millilitres. Appends, so log a glass at a time.
+
+        Returns the day's running total. A drink with calories can go through
+        `log_food` with both — they are the same record.
+        """
+        return queries.log_water(ml=ml, note=note, day=day)
 
     @mcp.tool
     def log_body(

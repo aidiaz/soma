@@ -88,25 +88,43 @@ class DailyHealth(SQLModel, table=True):
     raw: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
 
 
-class Nutrition(SQLModel, table=True):
-    """Manual, and permanently so. No sensor knows what you ate.
+class IntakeEntry(SQLModel, table=True):
+    """One thing consumed, at a time. Append-only.
 
-    Written through the MCP server, so reporting a day's food in conversation is
-    what creates the record — the gap this closes is the one where the log
-    depended on remembering to type it in later.
+    Manual, and permanently so — no sensor knows what you ate. Reporting food in
+    conversation is what creates the record.
+
+    **Entries, not a daily row.** The daily-total shape it replaces could only be
+    written once: a second call overwrote the first and nulled any field it did
+    not repeat, so logging lunch destroyed breakfast. Nobody knows their day's
+    total at the moment they eat, which made the only tool for the job unusable
+    for the way people actually eat.
+
+    There is no ``kind`` column. Food, water and supplements differ by which
+    fields are populated, not by a type tag — a recovery shake carries macros
+    *and* ``ml``, and a classification would have to pick one. Supplements carry
+    ``qty``/``unit`` (1.5 scoops, 2 pills) and no macros.
+
+    ``at`` is an absolute UTC instant; ``date`` is the local day it belongs to,
+    resolved by :mod:`soma.clock`. Both are stored because the first is the
+    truth and the second is the join key.
+
+    Corrections are a further entry, since the write tools have no delete.
     """
 
-    __tablename__ = "nutrition"
+    __tablename__ = "intake_entries"
 
-    date: dt.date = Field(primary_key=True)
+    id: int | None = Field(default=None, primary_key=True)
+    at: dt.datetime
+    date: dt.date = Field(index=True)
+    item: str | None = None
+    qty: float | None = None
+    unit: str | None = None
     kcal: int | None = None
     protein_g: float | None = None
     fat_g: float | None = None
     carbs_g: float | None = None
-    creatine: bool = False
-    magnesium: bool = False
-    vitamin_d: bool = False
-    probiotic: bool = False
+    ml: int | None = None
     note: str | None = None
 
 

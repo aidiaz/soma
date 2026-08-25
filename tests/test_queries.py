@@ -5,17 +5,19 @@ from __future__ import annotations
 from datetime import date, timedelta
 
 import pytest
+from sqlmodel import select
 
 from soma.clock import today as utc_today
 from soma.db import get_session
-from soma.models import Body, DailyHealth, Nutrition
+from soma.models import Body, DailyHealth, IntakeEntry
 from soma.serve.queries import (
     get_health_trend,
     get_recent_activities,
     get_tests,
     log_body,
-    log_nutrition,
+    log_food,
     log_test,
+    log_water,
 )
 
 # --- get_health_trend ------------------------------------------------------
@@ -114,48 +116,60 @@ def test_tests_keep_history_rather_than_overwriting(db):
     assert len(get_tests()) == 2
 
 
-# --- log_nutrition ---------------------------------------------------------
+# --- log_food / log_water --------------------------------------------------
 
 
-def test_log_nutrition_persists(db):
-    log_nutrition("2026-03-14", kcal=2_400, protein_g=150.0)
+def test_log_food_persists(db):
+    log_food(kcal=900, protein_g=50.0, day="2026-03-14")
     with get_session() as session:
-        assert session.get(Nutrition, date(2026, 3, 14)).kcal == 2_400
+        rows = session.exec(select(IntakeEntry)).all()
+    assert [r.kcal for r in rows] == [900]
 
 
-def test_log_nutrition_returns_what_it_stored(db):
-    stored = log_nutrition("2026-03-14", kcal=2_400, protein_g=150.0)
-    assert stored["kcal"] == 2_400
-    assert stored["date"] == "2026-03-14"
+def test_a_second_call_adds_rather_than_replacing(db):
+    """The bug this shape exists to remove.
+
+    The daily row merged a fully-built object, so a second call overwrote the
+    first and nulled every field it did not repeat: breakfast then lunch left
+    kcal=700 and protein_g=None.
+    """
+    log_food(kcal=500, protein_g=30.0, day="2026-03-14")
+    result = log_food(kcal=700, day="2026-03-14")
+    assert result["day_total"]["kcal"] == 1_200
+    assert result["day_total"]["protein_g"] == 30.0, "the earlier macro must survive"
 
 
-def test_log_nutrition_defaults_to_today(db):
-    assert log_nutrition(kcal=2_000)["date"] == utc_today().isoformat()
+def test_a_day_with_no_calories_logged_reports_none_not_zero(db):
+    # Logging only water is not a day of eating nothing.
+    result = log_water(ml=500, day="2026-03-14")
+    assert result["day_total"]["ml"] == 500
+    assert result["day_total"]["kcal"] is None
 
 
-def test_log_nutrition_upserts_on_the_date(db):
-    # Corrections overwrite. There is no delete tool, so this is the only way
-    # to fix a wrong entry.
-    log_nutrition("2026-03-14", kcal=2_400)
-    log_nutrition("2026-03-14", kcal=2_600)
-    with get_session() as session:
-        assert session.get(Nutrition, date(2026, 3, 14)).kcal == 2_600
+def test_log_water_accumulates(db):
+    log_water(ml=500, day="2026-03-14")
+    assert log_water(ml=250, day="2026-03-14")["day_total"]["ml"] == 750
 
 
-def test_log_nutrition_records_supplements(db):
-    stored = log_nutrition("2026-03-14", creatine=True, vitamin_d=True)
-    assert stored["creatine"] is True
-    assert stored["vitamin_d"] is True
-    assert stored["magnesium"] is False
+def test_a_supplement_is_an_entry_with_a_quantity(db):
+    stored = log_food(item="creatine", qty=1.5, unit="scoop", day="2026-03-14")
+    assert stored["logged"]["item"] == "creatine"
+    assert stored["logged"]["qty"] == 1.5
+    assert stored["day_total"]["kcal"] is None, "a supplement is not food energy"
 
 
-def test_log_nutrition_accepts_a_note(db):
-    assert log_nutrition("2026-03-14", note="ate out, estimated")["note"] == "ate out, estimated"
+def test_log_food_defaults_to_today(db):
+    assert log_food(kcal=2_000)["logged"]["date"] == utc_today().isoformat()
 
 
-def test_log_nutrition_rejects_a_malformed_date(db):
+def test_log_food_accepts_a_note(db):
+    stored = log_food(kcal=100, note="ate out, estimated", day="2026-03-14")
+    assert stored["logged"]["note"] == "ate out, estimated"
+
+
+def test_log_food_rejects_a_malformed_date(db):
     with pytest.raises(ValueError):
-        log_nutrition("14-03-2026", kcal=2_000)
+        log_food(kcal=2_000, day="14-03-2026")
 
 
 # --- log_body --------------------------------------------------------------

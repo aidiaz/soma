@@ -18,10 +18,14 @@ import sys
 from pathlib import Path
 
 from alembic import command
+from alembic.autogenerate import compare_metadata
 from alembic.config import Config
+from alembic.migration import MigrationContext
 from alembic.script import ScriptDirectory
 from sqlalchemy import create_engine, inspect
+from sqlmodel import SQLModel
 
+import soma.models  # noqa: F401  (registers tables on the metadata)
 from soma.clock import now
 from soma.config import ROOT, settings
 
@@ -61,6 +65,26 @@ def _alembic_config() -> Config:
     return cfg
 
 
+def _matches_head(url: str) -> bool:
+    """Whether the schema already is what the models describe.
+
+    An unversioned database is not necessarily an *old* one. Before alembic,
+    `create_all` built the current schema — so a database made that way is at
+    head, and stamping it at the baseline would then try to re-run every
+    migration against tables that are already correct.
+
+    Asking the schema rather than guessing keeps this generic: no revision id
+    appears here, so it stays right as revisions are added.
+    """
+    engine = create_engine(url)
+    try:
+        with engine.connect() as conn:
+            ctx = MigrationContext.configure(conn, opts={"compare_type": True})
+            return not compare_metadata(ctx, SQLModel.metadata)
+    finally:
+        engine.dispose()
+
+
 def _baseline_revision(cfg: Config) -> str:
     """The first revision in the chain, found rather than hardcoded."""
     script = ScriptDirectory.from_config(cfg)
@@ -85,14 +109,21 @@ def main() -> None:
         _backup(db)
 
     if tables and "alembic_version" not in tables:
-        base = _baseline_revision(cfg)
-        log.info(
-            "Existing database with no alembic_version; stamping baseline %s "
-            "rather than re-creating %s existing table(s).",
-            base,
-            len(tables),
-        )
-        command.stamp(cfg, base)
+        if _matches_head(settings.db_url):
+            log.info(
+                "Existing database already matches the models; stamping head "
+                "rather than replaying migrations over a correct schema."
+            )
+            command.stamp(cfg, "head")
+        else:
+            base = _baseline_revision(cfg)
+            log.info(
+                "Existing database with no alembic_version; stamping baseline %s "
+                "rather than re-creating %s existing table(s).",
+                base,
+                len(tables),
+            )
+            command.stamp(cfg, base)
 
     command.upgrade(cfg, "head")
     log.info("Migrations up to date.")

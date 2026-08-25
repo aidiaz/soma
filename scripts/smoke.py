@@ -40,7 +40,8 @@ EXPECTED_TOOLS = {
     "get_health_trend",
     "get_recent_activities",
     "get_tests",
-    "log_nutrition",
+    "log_food",
+    "log_water",
     "log_body",
 }
 
@@ -178,14 +179,26 @@ async def _check_tools(r: Results, url: str, token: str) -> None:
         today = utc_today().isoformat()
         food = (
             await client.call_tool(
-                "log_nutrition",
-                {"day": today, "kcal": KCAL, "protein_g": PROTEIN, "creatine": True},
+                "log_food",
+                {"day": today, "kcal": KCAL, "protein_g": PROTEIN, "item": "smoke breakfast"},
             )
         ).data
-        r.eq("log_nutrition returns the stored kcal", food.get("kcal"), KCAL)
-        r.eq("log_nutrition returns the stored protein", food.get("protein_g"), PROTEIN)
-        r.eq("log_nutrition records a supplement", food.get("creatine"), True)
-        r.eq("log_nutrition stamps the date", food.get("date"), today)
+        r.eq("log_food returns the stored kcal", food["logged"].get("kcal"), KCAL)
+        r.eq("log_food returns the stored protein", food["logged"].get("protein_g"), PROTEIN)
+        r.eq("log_food stamps the date", food["logged"].get("date"), today)
+        r.eq("log_food reports the day total", food["day_total"].get("kcal"), KCAL)
+
+        supplement = (
+            await client.call_tool(
+                "log_food", {"day": today, "item": "creatine", "qty": 1.5, "unit": "scoop"}
+            )
+        ).data
+        r.eq("a supplement records its quantity", supplement["logged"].get("qty"), 1.5)
+        r.eq(
+            "a supplement adds no food energy",
+            supplement["day_total"].get("kcal"),
+            KCAL,
+        )
 
         body = (
             await client.call_tool(
@@ -195,10 +208,20 @@ async def _check_tools(r: Results, url: str, token: str) -> None:
         r.eq("log_body returns the stored weight", body.get("weight_kg"), WEIGHT_KG)
         r.eq("log_body returns the stored waist", body.get("waist_cm"), WAIST_CM)
 
-        corrected = (
-            await client.call_tool("log_nutrition", {"day": today, "kcal": KCAL + 100})
-        ).data
-        r.eq("re-logging a day corrects it", corrected.get("kcal"), KCAL + 100)
+        # The regression this shape exists to prevent: a second call used to
+        # overwrite the first and null every macro it did not repeat.
+        second = (await client.call_tool("log_food", {"day": today, "kcal": 100})).data
+        r.eq(
+            "a second entry adds rather than replacing", second["day_total"].get("kcal"), KCAL + 100
+        )
+        r.eq(
+            "the earlier macro survives a later entry",
+            second["day_total"].get("protein_g"),
+            PROTEIN,
+        )
+
+        water = (await client.call_tool("log_water", {"day": today, "ml": 500})).data
+        r.eq("log_water records millilitres", water["day_total"].get("ml"), 500)
 
         r.start("reads")
         week = (await client.call_tool("get_training_week", {})).data
