@@ -16,6 +16,7 @@ from soma.serve.server import SCOPE, build_mcp
 
 EXPECTED_TOOLS = {
     "get_training_week",
+    "get_daily_series",
     "get_health_trend",
     "get_recent_activities",
     "get_tests",
