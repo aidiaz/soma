@@ -14,11 +14,18 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 
+from soma.clock import today
 from soma.db import get_session
 from soma.ingest.garmin.sync import _day_is_synced, _should_fetch
 from soma.models import DailyHealth
 
-TODAY = date(2026, 8, 24)
+# Taken from the clock rather than pinned to a date. An earlier version hardcoded
+# 2026-08-24, which passed for as long as that was the current day and failed at
+# midnight UTC — the coverage tests seed relative to TODAY and then call
+# get_health_trend, which resolves its own window from the real clock. A test
+# whose result depends on when it runs is worse than no test: it goes red on an
+# unrelated pull request and trains everyone to ignore it.
+TODAY = today()
 
 
 def _phone_only(d: date) -> DailyHealth:
