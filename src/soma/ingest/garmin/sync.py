@@ -33,6 +33,7 @@ from soma.clock import UTC, today
 from soma.config import settings
 from soma.db import get_session, init_db
 from soma.ingest.garmin.client import get_client
+from soma.ingest.runs import record_run
 from soma.models import WATCH_DERIVED_FIELDS, Activity, DailyHealth
 
 log = logging.getLogger("soma.ingest.garmin")
@@ -331,13 +332,42 @@ def sync(
     refresh_days: int = 2,
     recheck_days: int = 30,
 ) -> None:
+    """Pull the window and upsert it, recording the attempt either way.
+
+    The record matters most here. This worker runs once a day, and its two
+    common failures — an expired token and a rate limit — both end with the
+    database simply not gaining any new days. That is indistinguishable from a
+    week the watch was not worn unless the attempt itself is written down.
+    """
     init_db()
+    window = days_back if days_back is not None else settings.garmin_sync_days_back
+    with record_run(SOURCE, window_days=window) as counts:
+        _sync(
+            counts,
+            window,
+            skip_existing=skip_existing,
+            refresh_days=refresh_days,
+            recheck_days=recheck_days,
+        )
+
+
+def _sync(
+    counts: dict[str, Any],
+    window: int,
+    *,
+    skip_existing: bool,
+    refresh_days: int,
+    recheck_days: int,
+) -> None:
+    """The run itself. ``counts`` is filled as the work happens, not at the end,
+    so a run that dies to a 429 still records what it managed to store."""
+    # Seeded so the recorded shape is the same whether or not the run got far.
+    # A reader comparing two runs should not have to tell "zero" from "absent".
+    counts.update({"activities": 0, "days_synced": 0, "days_skipped": 0})
     client = get_client()
     name = client.get_full_name() or getattr(client, "display_name", "account")
     end = today()
-    start = end - timedelta(
-        days=days_back if days_back is not None else settings.garmin_sync_days_back
-    )
+    start = end - timedelta(days=window)
     total = (end - start).days + 1
     log.info("Authenticated as %s. Syncing %s .. %s (%s days).", name, start, end, total)
     if total > 90:
@@ -352,6 +382,7 @@ def sync(
 
     try:
         n_act = _sync_activities(client, start, end)
+        counts["activities"] = n_act
         log.info("Activities upserted: %s", n_act)
         _jitter()
 
@@ -365,9 +396,11 @@ def sync(
                 recheck_days=recheck_days,
             ):
                 skipped += 1
+                counts["days_skipped"] = skipped
                 continue
             sync_day(client, d)
             synced += 1
+            counts["days_synced"] = synced
             _jitter()
             if i % 30 == 0:
                 log.info(
@@ -379,7 +412,10 @@ def sync(
             "Hit Garmin 429 rate limit mid-sync. Stopping; partial data is saved. "
             "Retry later (re-run with --skip-existing to resume) — do not loop."
         )
-        raise SystemExit(1)
+        # The message, not a bare 1: it is what ``sync_runs`` stores, and "429
+        # rate limit" is the difference between waiting and debugging. The exit
+        # code is 1 either way, which is what the compose loop reads.
+        raise SystemExit("Garmin 429 rate limit — stopped mid-sync, partial data saved")
 
     log.info("Sync complete.")
 

@@ -40,6 +40,7 @@ EXPECTED_TOOLS = {
     "get_health_trend",
     "get_recent_activities",
     "get_tests",
+    "get_sync_status",
     "log_food",
     "log_water",
     "log_body",
@@ -267,6 +268,13 @@ async def _check_tools(r: Results, url: str, token: str) -> None:
         tests = (await client.call_tool("get_tests", {})).data
         r.check("get_tests returns a list", isinstance(tests, list), f"got {type(tests).__name__}")
 
+        sync = (await client.call_tool("get_sync_status", {})).data
+        r.check(
+            "get_sync_status reports every source",
+            set(sync.get("sources", {})) == {"garmin", "wahoo"},
+            f"got {sorted(sync.get('sources', {}))}",
+        )
+
         r.start("empty-state honesty")
         # With no Garmin sync, health must report absent — not zero, and not a
         # silently short list. A sync that never ran has to be visible.
@@ -280,6 +288,15 @@ async def _check_tools(r: Results, url: str, token: str) -> None:
         )
         r.eq("resting HR is null, not zero", signals.get("resting_hr_avg"), None)
         r.eq("ramp from no prior load is null, not zero", signals.get("tss_ramp_pct"), None)
+        # No worker has ever run against this database. Reporting that as
+        # anything other than "never" would let a dead sync read as a healthy
+        # one, which is the whole reason the run record exists.
+        r.eq("a source that never ran says so", sync["sources"]["garmin"]["status"], "never")
+        r.eq(
+            "the week's coverage carries the same answer",
+            week["coverage"]["sync"]["wahoo"]["status"],
+            "never",
+        )
 
 
 def check_log(r: Results, log_path: pathlib.Path) -> None:

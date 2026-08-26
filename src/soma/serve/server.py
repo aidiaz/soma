@@ -1,6 +1,6 @@
 """MCP tool definitions and the stdio entry point.
 
-Six tools, not thirty. One person, one read surface. Every tool reads or writes
+Seven tools, not thirty. One person, one read surface. Every tool reads or writes
 only the local database — none of them contacts Wahoo or Garmin. That is
 deliberate:
 
@@ -81,6 +81,26 @@ def build_mcp(auth: Any = None) -> FastMCP:
     def get_tests() -> list[dict]:
         """FTP and 4DP test history, newest first, with W/kg. The scoreboard."""
         return queries.get_tests()
+
+    @mcp.tool
+    def get_sync_status() -> dict:
+        """Whether ingestion is actually running, per source, with the last few runs.
+
+        Ask this before concluding anything from a gap. The sync workers are
+        loops in compose, and a loop that dies leaves a database that looks
+        exactly like a quiet week — no rides, no sleep, no error anywhere the
+        athlete would see.
+
+        Each source reports `status` ("ok", "failed", "running", or "never"),
+        when it last ran, when it last succeeded, how long ago that was in
+        seconds, and what it counted. `error` is set only when the *latest* run
+        failed. A `running` status with an old `last_run_at` means a worker was
+        killed mid-run.
+
+        No threshold is applied here: Garmin runs daily and Wahoo hourly, so
+        what counts as too long is the caller's judgement.
+        """
+        return queries.get_sync_status()
 
     # --- write — narrow and deliberate --------------------------------------
 

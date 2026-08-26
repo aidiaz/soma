@@ -19,6 +19,7 @@ EXPECTED_TOOLS = {
     "get_health_trend",
     "get_recent_activities",
     "get_tests",
+    "get_sync_status",
     "log_food",
     "log_water",
     "log_body",

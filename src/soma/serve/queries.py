@@ -15,15 +15,25 @@ reading Python.
 
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from typing import Any
 
 from sqlmodel import col, desc, select
 
-from soma.clock import now, today
+from soma.clock import UTC, now, today
 from soma.db import get_session
 from soma.metrics import duplicate_efforts, training_load_series, tss_ramp
-from soma.models import WATCH_DERIVED_FIELDS, Activity, Body, DailyHealth, FitnessTest, IntakeEntry
+from soma.models import (
+    SYNC_OK,
+    SYNC_SOURCES,
+    WATCH_DERIVED_FIELDS,
+    Activity,
+    Body,
+    DailyHealth,
+    FitnessTest,
+    IntakeEntry,
+    SyncRun,
+)
 
 # How far back to warm the CTL/ATL EWMAs before reading them. CTL's time
 # constant is 42 days, so a shorter window reports fitness that is an artefact
@@ -34,6 +44,14 @@ WARMUP_DAYS = 120
 # is what tells a failed sync apart from a rest day. Long backfills can be
 # missing hundreds, so the list is capped and the true count sent alongside.
 MAX_LISTED_GAPS = 14
+
+# How many past runs the sync report carries per source. Enough to see "failing
+# every hour since Tuesday" rather than a single red result with no shape.
+MAX_LISTED_RUNS = 5
+
+# Reported, never stored: no row means no run, and the source has to say that
+# out loud rather than be left out of the report.
+NEVER = "never"
 
 
 def _dump(obj: Any, include_raw: bool = False) -> dict[str, Any]:
@@ -276,6 +294,10 @@ def get_training_week(week_start: str | None = None) -> dict[str, Any]:
             # effort and the ingest filter that should have prevented it did
             # not — the load below is right, but the ingestion needs fixing.
             "duplicate_efforts": duplicate_efforts(start, end),
+            # Which is the difference between "no ride happened" and "nothing
+            # asked Wahoo whether one did". Without it every gap above is
+            # ambiguous, and the ambiguity resolves the flattering way.
+            "sync": sync_status_by_source(),
         },
     }
 
@@ -335,6 +357,89 @@ def get_tests() -> list[dict[str, Any]]:
         data["w_per_kg"] = round(row.ftp / row.weight_kg, 2) if row.ftp and row.weight_kg else None
         out.append(data)
     return out
+
+
+def _run_dump(row: SyncRun | None) -> dict[str, Any] | None:
+    if row is None:
+        return None
+    data = _dump(row)
+    data.pop("id", None)
+    return data
+
+
+def _age_s(stamp: datetime | None) -> float | None:
+    """Seconds since a stored timestamp, or None if there is none.
+
+    Stored timestamps are naive UTC by convention, so the zone is attached here
+    rather than assumed by a subtraction that would raise on the mismatch.
+    """
+    if stamp is None:
+        return None
+    return round((now() - stamp.replace(tzinfo=UTC)).total_seconds(), 1)
+
+
+def _last_run(session: Any, source: str, status: str | None = None) -> SyncRun | None:
+    stmt = select(SyncRun).where(col(SyncRun.source) == source)
+    if status is not None:
+        stmt = stmt.where(col(SyncRun.status) == status)
+    rows = session.exec(
+        stmt.order_by(desc(col(SyncRun.started_at)), desc(col(SyncRun.id))).limit(1)
+    ).all()
+    return rows[0] if rows else None
+
+
+def sync_status_by_source() -> dict[str, dict[str, Any]]:
+    """Per source: did ingestion run, when, and did it work.
+
+    Every source in :data:`SYNC_SOURCES` appears, including one that has never
+    recorded a run — ``status: "never"`` with explicit nulls. Dropping it would
+    make a worker that was never deployed look identical to one that is
+    healthy, which is the failure this whole table exists to prevent.
+
+    Ages are reported and not judged. What counts as *too long* differs by
+    source — Garmin runs daily, Wahoo hourly — and thresholds belong with the
+    coaching rules, in the skill, not compiled in here.
+    """
+    out: dict[str, dict[str, Any]] = {}
+    with get_session() as session:
+        for source in SYNC_SOURCES:
+            latest = _last_run(session, source)
+            success = _last_run(session, source, SYNC_OK)
+            out[source] = {
+                "status": latest.status if latest else NEVER,
+                "last_run_at": latest.started_at.isoformat() if latest else None,
+                "last_success_at": success.finished_at.isoformat()
+                if success and success.finished_at
+                else None,
+                "seconds_since_success": _age_s(success.finished_at) if success else None,
+                "window_days": latest.window_days if latest else None,
+                "counts": dict(latest.counts or {}) if latest else None,
+                # Populated only when the last run failed. A stale error from a
+                # run three days ago, sitting beside a success from an hour
+                # ago, reads as a live problem and is not one.
+                "error": latest.error if latest and latest.status != SYNC_OK else None,
+            }
+    return out
+
+
+def get_sync_status() -> dict[str, Any]:
+    """Whether ingestion is alive, with the last few runs per source.
+
+    The question this answers used to need shell access to the Pi: the workers
+    are `while true; sleep` loops in compose, and a loop that dies leaves the
+    database looking exactly like a quiet week.
+    """
+    status = sync_status_by_source()
+    with get_session() as session:
+        for source in SYNC_SOURCES:
+            rows = session.exec(
+                select(SyncRun)
+                .where(col(SyncRun.source) == source)
+                .order_by(desc(col(SyncRun.started_at)), desc(col(SyncRun.id)))
+                .limit(MAX_LISTED_RUNS)
+            ).all()
+            status[source]["recent_runs"] = [_run_dump(r) for r in rows]
+    return {"checked_at": now().isoformat(), "sources": status}
 
 
 # --------------------------------------------------------------------------- #
