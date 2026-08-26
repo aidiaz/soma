@@ -20,6 +20,8 @@ import logging
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+from sqlmodel import col, select
+
 from soma.clock import UTC, today
 from soma.config import settings
 from soma.db import get_session, init_db
@@ -144,15 +146,36 @@ def sync(days_back: int | None = None, dry_run: bool = False) -> dict[str, int]:
     init_db()
     window = days_back if days_back is not None else settings.wahoo_sync_days_back
     if dry_run:
-        return _sync(window, dry_run=True)
+        return _sync({}, window, dry_run=True)
     with record_run(SOURCE, window_days=window) as counts:
-        result = _sync(window, dry_run=False)
-        counts.update(result)
-    return result
+        return _sync(counts, window, dry_run=False)
 
 
-def _sync(window: int, *, dry_run: bool) -> dict[str, int]:
+def _existing_id(session: Any, row: Activity) -> int | None:
+    """The surrogate key of the stored row for this workout, if there is one.
+
+    ``merge()`` keys on the primary key, and a mapped row never carries one —
+    it is a surrogate, assigned by SQLite. So a merge always looked like an
+    insert, and the second run that saw a workout already stored died on
+    ``uq_activity_source_id`` instead of updating it. Hourly, forever, from the
+    first repeat onwards.
+
+    ``ingest.garmin.sync._sync_activities`` resolves the same problem the same
+    way. The four lines are repeated rather than shared on purpose: the Garmin
+    writer also carries the empty-day placeholder guard, and folding the two
+    together during a hotfix would put the most load-bearing write path in this
+    repository into a change made at midnight.
+    """
+    stmt = select(Activity).where(
+        col(Activity.source) == row.source, col(Activity.external_id) == row.external_id
+    )
+    existing = session.exec(stmt).first()
+    return existing.id if existing is not None else None
+
+
+def _sync(counts: dict[str, int], window: int, *, dry_run: bool) -> dict[str, int]:
     cutoff = today() - dt.timedelta(days=window)
+    counts.update({"written": 0, "scheduled": 0, "outside": 0})
 
     with get_client() as client:
         workouts = client.workouts()
@@ -164,15 +187,22 @@ def _sync(window: int, *, dry_run: bool) -> dict[str, int]:
         row = map_workout(workout)
         if row is None:
             scheduled += 1
+            counts["scheduled"] = scheduled
             continue
         if row.date < cutoff:
             outside += 1
+            counts["outside"] = outside
             continue
         if not dry_run:
             with get_session() as session:
+                row.id = _existing_id(session, row)
                 session.merge(row)
                 session.commit()
         written += 1
+        # Written as the work happens, not at the end: a run that dies partway
+        # should record what it managed to store, which is what made this bug
+        # legible in the first place.
+        counts["written"] = written
 
     log.info(
         "Wahoo sync%s: %d completed workouts upserted, %d scheduled skipped, "

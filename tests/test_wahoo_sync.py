@@ -10,8 +10,12 @@ from __future__ import annotations
 import datetime as dt
 
 import pytest
+from sqlmodel import select
 
+from soma.db import get_session
+from soma.ingest.wahoo import sync as wahoo_sync
 from soma.ingest.wahoo.sync import SOURCE, _num, _sport, map_workout
+from soma.models import Activity
 
 
 def workout(**overrides):
@@ -141,3 +145,66 @@ def test_sport_mapping_falls_back_rather_than_guessing(type_id, expected):
 )
 def test_num_coercion(value, expected):
     assert _num(value) == expected
+
+
+# --------------------------------------------------------------------------- #
+# writing, which the mapping tests above never exercised
+# --------------------------------------------------------------------------- #
+class FakeClient:
+    """A Wahoo client that returns a fixed workout list."""
+
+    def __init__(self, workouts):
+        self._workouts = workouts
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_exc):
+        return False
+
+    def workouts(self):
+        return self._workouts
+
+
+def _today_workout():
+    stamp = dt.datetime.now(tz=dt.UTC).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+    return workout(starts=stamp, summary={"started_at": stamp, "time_zone": "UTC"})
+
+
+def test_a_second_sync_updates_rather_than_failing(db, monkeypatch):
+    """The bug this file did not catch: every run after the first one died.
+
+    ``merge()`` keys on the primary key, which a mapped row never carries, so
+    the second time a workout was seen the merge looked like an insert and
+    ``uq_activity_source_id`` rejected it. In production that is an hourly loop
+    failing forever from its first repeat, while the database keeps serving
+    stale rides that look exactly like a week off the bike.
+
+    The mapping tests could not see it: they never wrote anything twice.
+    """
+    monkeypatch.setattr(wahoo_sync, "get_client", lambda: FakeClient([_today_workout()]))
+
+    first = wahoo_sync.sync()
+    second = wahoo_sync.sync()  # this used to raise IntegrityError
+
+    assert first["written"] == 1
+    assert second["written"] == 1
+    with get_session() as session:
+        rows = list(session.exec(select(Activity)).all())
+    assert len(rows) == 1, "a re-sync must update the stored ride, not add a second one"
+
+
+def test_a_re_sync_takes_the_newer_values(db, monkeypatch):
+    """An upsert, not a skip. Wahoo revises a summary after the ride uploads."""
+    monkeypatch.setattr(wahoo_sync, "get_client", lambda: FakeClient([_today_workout()]))
+    wahoo_sync.sync()
+
+    revised = _today_workout()
+    revised["workout_summary"]["power_bike_tss_last"] = "61.4"
+    monkeypatch.setattr(wahoo_sync, "get_client", lambda: FakeClient([revised]))
+    wahoo_sync.sync()
+
+    with get_session() as session:
+        rows = list(session.exec(select(Activity)).all())
+    assert len(rows) == 1
+    assert rows[0].tss == 61.4
