@@ -12,6 +12,15 @@ holds it.
 
 ### Added
 
+- **Sync runs are recorded.** Every attempt by `garmin-sync` and `wahoo-sync`
+  writes a `sync_runs` row — before the work, so a killed process still leaves
+  a trace, and again with the outcome and what it counted. A new
+  `get_sync_status` tool reports it per source, and `get_training_week`'s
+  `coverage` block carries the same answer beside the gaps it explains.
+  Until now the only evidence a sync had run was the newest data row, which
+  cannot tell a worker that ran and found nothing from one that has been dead
+  for a week: both look like a rest week.
+
 - Repository workflow: issue templates, PR template, CODEOWNERS, dependabot,
   and `docs/WORKFLOW.md` describing the risk tiers and who merges what.
 - A separate agent identity, `soma-sentry[bot]`, authenticating as a GitHub

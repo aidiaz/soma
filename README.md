@@ -53,7 +53,7 @@ src/soma/
 
 ## Tools
 
-Six, on purpose. One person, one read surface.
+Seven, on purpose. One person, one read surface.
 
 | Tool | What it does |
 |---|---|
@@ -61,13 +61,18 @@ Six, on purpose. One person, one read surface.
 | `get_health_trend` | Resting HR, HRV, sleep and Body Battery over a window |
 | `get_recent_activities` | Session detail when one ride needs looking at |
 | `get_tests` | FTP and 4DP history with W/kg |
+| `get_sync_status` | Whether ingestion is actually running, per source, with the last few runs |
 | `log_nutrition` | Record a day's food — reporting it in conversation is what creates the entry |
 | `log_body` | Weight and waist, weekly |
 
 No delete tool. Corrections happen by upsert on the date key.
 
 `get_training_week` returns a `coverage` block. Read it before reading anything
-into a gap — a sync that failed looks exactly like a week of rest days.
+into a gap — a sync that failed looks exactly like a week of rest days. The
+block carries a `sync` report for exactly that reason: every run of every worker
+is recorded in `sync_runs`, so "nothing was ingested" and "nothing happened" are
+different answers rather than the same silence. `get_sync_status` asks the same
+question directly, with the last few runs and any error.
 
 ## Setup
 
@@ -112,7 +117,7 @@ make ci        # lint + test + contract + smoke
 
 `make test` cannot see a lifespan fault, a mount-order fault, or a handler that
 returns 200 while logging an exception. `make smoke` can — it starts a real
-server on a throwaway database, drives all six tools as a client, and fails if
+server on a throwaway database, drives every tool as a client, and fails if
 the process logged anything unexpected. Point it at any target:
 
 ```bash

@@ -23,6 +23,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from soma.clock import UTC, today
 from soma.config import settings
 from soma.db import get_session, init_db
+from soma.ingest.runs import record_run
 from soma.ingest.wahoo.client import get_client
 from soma.models import Activity
 
@@ -133,9 +134,24 @@ def map_workout(workout: dict[str, Any]) -> Activity | None:
 
 
 def sync(days_back: int | None = None, dry_run: bool = False) -> dict[str, int]:
-    """Pull workouts and upsert the completed ones inside the window."""
+    """Pull workouts and upsert the completed ones inside the window.
+
+    The run is recorded in ``sync_runs``, because an hourly loop that stops
+    looks exactly like a week without riding. A *dry* run is deliberately not
+    recorded: it writes nothing, and letting it advance "last successful sync"
+    would have the report claim an ingestion that never happened.
+    """
     init_db()
     window = days_back if days_back is not None else settings.wahoo_sync_days_back
+    if dry_run:
+        return _sync(window, dry_run=True)
+    with record_run(SOURCE, window_days=window) as counts:
+        result = _sync(window, dry_run=False)
+        counts.update(result)
+    return result
+
+
+def _sync(window: int, *, dry_run: bool) -> dict[str, int]:
     cutoff = today() - dt.timedelta(days=window)
 
     with get_client() as client:

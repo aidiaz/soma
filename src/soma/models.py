@@ -195,3 +195,58 @@ class CalendarSync(SQLModel, table=True):
     # Hash of the fields that appear in the calendar entry. Comparing it is how
     # a run tells "unchanged" from "edited" without diffing every field.
     content_hash: str | None = None
+
+
+# The sources expected to report a run. A source absent from ``sync_runs``
+# entirely must read as "never ran" rather than vanish from the report, so the
+# reader needs the list rather than deriving it from the rows it found. Kept
+# here for the same reason as ``WATCH_DERIVED_FIELDS``: the writer lives in
+# ``ingest`` and the reader in ``serve``, and neither may import the other.
+SYNC_SOURCES = ("garmin", "wahoo")
+
+# "running" is written before the work starts. A row still saying so hours
+# later is the only trace a worker that was killed mid-run leaves behind.
+SYNC_RUNNING = "running"
+SYNC_OK = "ok"
+SYNC_FAILED = "failed"
+
+
+class SyncRun(SQLModel, table=True):
+    """One attempt by a sync worker, whether or not it wrote anything.
+
+    Without this table the only answer to "did ingestion run" is the newest
+    data row, and that cannot tell a worker which ran and found nothing from
+    one that has been dead for a week. Both look like a rest day — the same
+    class of quiet wrongness as an empty-day placeholder row, and the reason
+    ``coverage`` exists at all.
+
+    The row is written twice: once at the start, so a process killed mid-run
+    still leaves a record, and again at the end with the outcome. Both
+    timestamps are absolute instants, stored naive in UTC like every other
+    timestamp here.
+
+    ``counts`` is per-source and deliberately untyped. Garmin counts days and
+    activities, Wahoo counts workouts and the scheduled ones it skipped, and
+    forcing those into shared columns would mean columns that are null for
+    half the rows and a migration every time a worker learns to count
+    something else.
+
+    Nothing prunes this. A run an hour from each of two workers is about 18k
+    rows a year at a few hundred bytes each — small enough that a delete path,
+    which is a way to lose evidence, costs more than the space.
+    """
+
+    __tablename__ = "sync_runs"
+
+    id: int | None = Field(default=None, primary_key=True)
+    source: str = Field(index=True)  # "garmin" | "wahoo"
+    started_at: dt.datetime = Field(index=True)
+    finished_at: dt.datetime | None = None
+    status: str = SYNC_RUNNING
+    # What the run was asked to cover, so a short window explains a gap the
+    # reader would otherwise read as missing data.
+    window_days: int | None = None
+    counts: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+    # Type and message, truncated. The full traceback belongs in the log; this
+    # is here so the failure is visible without shell access to the Pi.
+    error: str | None = None
