@@ -302,6 +302,108 @@ def get_training_week(week_start: str | None = None) -> dict[str, Any]:
     }
 
 
+def get_daily_series(days: int = 90) -> dict[str, Any]:
+    """One row per day, every variable already joined. The correlation substrate.
+
+    The question this exists for is whether fuel and hydration track against
+    recovery — and recovery signals are *daily*, which is roughly 365
+    observations a year against perhaps 50 for per-ride performance. Shorter
+    causal chain, far better sample size.
+
+    Nothing else served that. ``get_training_week`` is one week,
+    ``get_health_trend`` is health alone, ``get_recent_activities`` is
+    activities alone. Correlating across them would mean joining in a context
+    window, which is the thing this project exists to avoid.
+
+    **Every day in the window is present.** A day with no data has explicit
+    nulls rather than being absent, because a shorter list silently changes what
+    a correlation is computed over.
+
+    ``tss`` is the exception and is 0.0 on a day with no session: a rest day
+    genuinely carried no load, and that is a measurement rather than a gap. Read
+    ``coverage.activities`` before trusting a run of zeros — a failed sync looks
+    exactly like a week off.
+
+    ``weight_kg`` appears only on days it was measured. It is deliberately not
+    carried forward; interpolating a body weight invents the very trend someone
+    would then read a correlation into.
+    """
+    end = today()
+    start = end - timedelta(days=max(days, 1) - 1)
+
+    # Warmed up from before the window so CTL and ATL are not ramping from cold
+    # inside the range being looked at.
+    loads = {
+        row["date"]: row for row in training_load_series(start - timedelta(days=WARMUP_DAYS), end)
+    }
+
+    with get_session() as session:
+        health = session.exec(
+            select(DailyHealth)
+            .where(col(DailyHealth.date) >= start, col(DailyHealth.date) <= end)
+            .order_by(col(DailyHealth.date))
+        ).all()
+        intake = session.exec(
+            select(IntakeEntry).where(col(IntakeEntry.date) >= start, col(IntakeEntry.date) <= end)
+        ).all()
+        body = session.exec(
+            select(Body).where(col(Body.date) >= start, col(Body.date) <= end)
+        ).all()
+        sessions = session.exec(
+            select(Activity).where(col(Activity.date) >= start, col(Activity.date) <= end)
+        ).all()
+
+    health_by_date = {r.date: r for r in health}
+    intake_by_date = _daily_intake(list(intake))
+    body_by_date = {r.date: r for r in body}
+    session_dates = {a.date for a in sessions}
+
+    rows: list[dict[str, Any]] = []
+    for i in range((end - start).days + 1):
+        day = start + timedelta(days=i)
+        key = day.isoformat()
+        load = loads.get(key, {})
+        h = health_by_date.get(day)
+        food = intake_by_date.get(day, {})
+        b = body_by_date.get(day)
+        rows.append(
+            {
+                "date": key,
+                "tss": load.get("tss"),
+                "ctl": load.get("ctl"),
+                "atl": load.get("atl"),
+                "tsb": load.get("tsb"),
+                "resting_hr": h.resting_hr if h else None,
+                "hrv_ms": h.hrv_ms if h else None,
+                "hrv_status": h.hrv_status if h else None,
+                "sleep_score": h.sleep_score if h else None,
+                "sleep_duration_s": h.sleep_duration_s if h else None,
+                "body_battery_high": h.body_battery_high if h else None,
+                "body_battery_low": h.body_battery_low if h else None,
+                "steps": h.steps if h else None,
+                "kcal": food.get("kcal"),
+                "protein_g": food.get("protein_g"),
+                "fat_g": food.get("fat_g"),
+                "carbs_g": food.get("carbs_g"),
+                "water_ml": food.get("ml"),
+                "weight_kg": b.weight_kg if b else None,
+                "waist_cm": b.waist_cm if b else None,
+            }
+        )
+
+    return {
+        "start": start.isoformat(),
+        "end": end.isoformat(),
+        "days": rows,
+        "coverage": {
+            "health": _health_coverage(list(health), start, end),
+            "intake": _gaps(set(intake_by_date), start, end),
+            "activities": _gaps(session_dates, start, end),
+            "body": _gaps(set(body_by_date), start, end),
+        },
+    }
+
+
 def get_health_trend(days: int = 14) -> dict[str, Any]:
     """Resting HR, HRV, sleep and Body Battery over a window, newest first.
 
@@ -564,6 +666,7 @@ def log_test(
 
 
 __all__ = [
+    "get_daily_series",
     "get_health_trend",
     "get_recent_activities",
     "get_tests",

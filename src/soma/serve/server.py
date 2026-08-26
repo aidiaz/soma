@@ -59,6 +59,27 @@ def build_mcp(auth: Any = None) -> FastMCP:
         return queries.get_training_week(week_start=week_start)
 
     @mcp.tool
+    def get_daily_series(days: int = 90) -> dict:
+        """One row per day over a long window, every variable already joined.
+
+        For asking whether one thing tracks another — does poor hydration cost
+        sleep, does protein intake move with resting HR. Recovery signals are
+        daily, so a year is roughly 365 observations against about 50 rides.
+
+        Every day in the window is present. A day with no data has explicit
+        nulls rather than being missing, because a shorter list quietly changes
+        what any comparison is computed over.
+
+        `tss` is 0.0 on a day with no session — a rest day carried no load, and
+        that is a measurement, not a gap. Check `coverage.activities` before
+        reading a run of zeros: a failed sync looks identical to a week off.
+
+        `weight_kg` is not carried forward between measurements. Interpolating
+        it would invent the trend someone is about to read a correlation into.
+        """
+        return queries.get_daily_series(days=days)
+
+    @mcp.tool
     def get_health_trend(days: int = 14) -> dict:
         """Resting HR, HRV, sleep and Body Battery over the last `days` days, newest first.
 

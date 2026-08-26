@@ -37,6 +37,7 @@ from soma.clock import today as utc_today
 
 EXPECTED_TOOLS = {
     "get_training_week",
+    "get_daily_series",
     "get_health_trend",
     "get_recent_activities",
     "get_tests",
