@@ -31,8 +31,17 @@ diff rather than a lost conversation.
 
 | Signal | Threshold | Response |
 |---|---|---|
-| `avg_kcal` | under 1,750 | **Flag first, before anything else.** This is the historic failure mode. Nothing else in this review matters until it is addressed. |
-| `avg_protein_g` | under 126 | Flag |
+| `avg_kcal` | under 2,050 | **Flag first, before anything else.** This is the historic failure mode. Nothing else in this review matters until it is addressed. |
+| `avg_protein_g` | under 140 | Flag |
+
+These are chosen numbers, not derived ones. Set 2026-08-24, raised from 1,750
+and 126. If bodyweight moves far, the protein figure is the one that goes stale
+first — it reads like a per-kilogram target that was written down as a constant,
+and nothing recomputes it. `body` is empty, so nothing *can* yet.
+
+Read `nutrition_days_logged` before reading either. An average over two logged
+days is a sample of two, and a week that looks like under-eating is often a week
+of under-logging — which needs a different response entirely.
 
 ### Recovery
 
