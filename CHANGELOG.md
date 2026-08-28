@@ -35,6 +35,17 @@ holds it.
   trainer rides — Garmin records none of them — so this is where training load
   comes from rather than a refinement of it.
 
+### Changed
+
+- **`garmin-sync` runs at a fixed local hour, 08:00 by default**
+  (`SOMA_GARMIN_SYNC_AT`), instead of every `SOMA_GARMIN_INTERVAL_S` seconds.
+  An interval is not a schedule: it began wherever the container last started,
+  slipped forward by each run's own duration, and would have moved an hour at
+  the next DST change — in practice the nightly sync had settled on 23:40 local
+  by accident. 08:00 also lands after Garmin finalises a night's sleep and HRV,
+  which is when the day's most valuable signals first exist. The worker now
+  logs `next garmin-sync at ...` after each run. `wahoo-sync` stays hourly.
+
 ### Fixed
 
 - **"Today" depended on where the process ran.** No timezone was configured, so

@@ -5,7 +5,7 @@ The shape:
 ```
 Claude ──► https://soma.hwhub.dev ──► [Cloudflare Tunnel] ──► Pi (Docker)
                                                                    ├─ server        (MCP, reads SQLite)
-                                                                   ├─ garmin-sync   (nightly, talks to Garmin)
+                                                                   ├─ garmin-sync   (daily 08:00, talks to Garmin)
                                                                    └─ cloudflared   (dials out)
 ```
 
@@ -175,7 +175,7 @@ tool call opens a Google sign-in.
 ## 8. Checking on it
 
 The `coverage` block on `get_training_week` is the honest answer to "is my data
-current?" — it names the days it has no data for. A nightly sync that quietly
+current?" — it names the days it has no data for. A daily sync that quietly
 died looks exactly like a week of rest days until you look at that list.
 
 ```bash
@@ -184,6 +184,11 @@ docker compose -f compose.pi.yaml exec server python -c \
   "import json; from soma.serve.queries import get_training_week; \
    print(json.dumps(get_training_week()['coverage'], indent=2))"
 ```
+
+The worker prints `next garmin-sync at ...` after every run, so the schedule is
+readable from the log rather than inferred from timestamps. `get_sync_status`
+answers the same question from the data: when each source last ran, whether it
+succeeded, and how long ago.
 
 ## 9. Updating
 

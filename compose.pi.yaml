@@ -78,8 +78,22 @@ services:
       TZ: ${SOMA_TIMEZONE:-UTC}
     volumes:
       - soma-data:/app/data
-    # Compose has no scheduler, so the loop is the schedule. --skip-existing
-    # makes each run cheap: only the last couple of days are re-fetched.
+    # Compose has no scheduler, so the loop is the schedule. It wakes at a fixed
+    # local hour rather than every N seconds, because `sleep 86400` is not a
+    # daily schedule: it starts wherever the container happened to start, slips
+    # forward by each run's own duration, and moves an hour at every DST change.
+    # Recomputing the next 08:00 from the clock each pass fixes all three, and
+    # costs one `date` call. The hour is read in TZ, which is SOMA_TIMEZONE —
+    # the same zone that decides the join key, so "the 08:00 run" and "today"
+    # can never disagree about which day they mean.
+    #
+    # 08:00 is chosen for the data, not for tidiness. Garmin only finalises a
+    # night's sleep and HRV after waking, so the morning is the first moment the
+    # day's most valuable signals exist to be fetched. --skip-existing keeps
+    # each run cheap: only the last couple of days are re-fetched.
+    #
+    # It also syncs once on start, so a deploy is verifiable immediately rather
+    # than at the next 08:00 — and so a broken deploy fails loudly now.
     #
     # A failed run must not end the loop: expired tokens and Garmin 429s are both
     # recoverable, and a dead container would stop the retries that fix them. But
@@ -89,7 +103,18 @@ services:
     command:
       - sh
       - -c
-      - 'while true; do garmin-sync --skip-existing || echo "garmin-sync FAILED (exit $?) — retrying next cycle"; sleep "${SOMA_GARMIN_INTERVAL_S:-86400}"; done'
+      - |
+        at="${SOMA_GARMIN_SYNC_AT:-08:00}"
+        while true; do
+          garmin-sync --skip-existing || echo "garmin-sync FAILED (exit $$?) — retrying next cycle"
+          now=$$(date +%s)
+          next=$$(date -d "$$at" +%s)
+          # Strictly in the future: finishing at 07:59 must still wait for today,
+          # and finishing exactly at 08:00 must not sleep zero and run twice.
+          [ "$$next" -le "$$now" ] && next=$$(date -d "tomorrow $$at" +%s)
+          echo "next garmin-sync at $$(date -d @$$next)"
+          sleep $$((next - now))
+        done
     restart: unless-stopped
     depends_on:
       server:
