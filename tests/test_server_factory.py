@@ -21,6 +21,7 @@ EXPECTED_TOOLS = {
     "get_recent_activities",
     "get_tests",
     "get_sync_status",
+    "request_sync",
     "log_food",
     "log_water",
     "log_body",
@@ -72,13 +73,44 @@ async def test_two_instances_hold_separate_tool_objects():
     )
 
 
-async def test_no_tool_reaches_garmin():
-    # The architectural rule, asserted rather than trusted to review: the tool
-    # layer imports queries only. A tool that called Garmin would need a client.
+# Anything that could put a vendor, or a way to reach one, inside a tool call.
+# `soma.ingest` is on the list because that is where every vendor credential
+# lives: importing it is how the rule would be broken by accident rather than
+# on purpose.
+FORBIDDEN_IMPORTS = ("garminconnect", "garth", "curl_cffi", "requests", "httpx", "soma.ingest")
+
+
+def _imported_modules(module) -> set[str]:
+    import ast
     import inspect
 
-    from soma.serve import server
+    tree = ast.parse(inspect.getsource(module))
+    names: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            names.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            names.add(node.module)
+    return names
 
-    source = inspect.getsource(server)
-    for vendor in ("garminconnect", "garmin.client", "garmin.sync", "wahoo"):
-        assert vendor not in source
+
+def test_the_serving_layer_cannot_reach_a_vendor():
+    """The architectural rule, asserted rather than trusted to review.
+
+    This reads imports out of the AST. It used to scan the module text for
+    vendor names, which was a proxy for the same thing and wrong in both
+    directions: it missed `garth` and `curl_cffi` entirely, and it failed on a
+    docstring that merely said the word Wahoo — so the first tool that had to
+    *describe* ingestion could not be documented. Imports are what the rule is
+    actually about, and prose cannot fake one.
+    """
+    from soma.serve import queries, server
+
+    # queries too: server.py delegates to it, so a vendor call one layer down
+    # is inside a tool call just the same.
+    for module in (server, queries):
+        for imported in _imported_modules(module):
+            for forbidden in FORBIDDEN_IMPORTS:
+                assert imported != forbidden and not imported.startswith(f"{forbidden}."), (
+                    f"{module.__name__} imports {imported}"
+                )

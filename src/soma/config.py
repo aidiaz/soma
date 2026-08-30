@@ -56,6 +56,13 @@ class Settings(BaseSettings):
     jwt_signing_key: str = ""
     allowed_emails: Annotated[set[str], NoDecode] = set()
 
+    # --- Ingestion scheduling ---
+    # How often a waiting worker checks for an on-demand sync request, and so
+    # the worst case between asking for one and it starting. A poll rather than
+    # a signal because the server and the workers are separate containers whose
+    # only shared surface is the database file.
+    sync_poll_s: float = 30.0
+
     # --- Garmin ingestion ---
     garmin_email: str = ""
     garmin_tokenstore: Path = DATA_DIR / "garmin_tokens"

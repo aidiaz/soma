@@ -250,3 +250,40 @@ class SyncRun(SQLModel, table=True):
     # Type and message, truncated. The full traceback belongs in the log; this
     # is here so the failure is visible without shell access to the Pi.
     error: str | None = None
+
+
+class SyncRequest(SQLModel, table=True):
+    """Someone asked for a source to sync now, and its worker has not yet.
+
+    This table is the whole interface between the MCP server and the sync
+    workers. The server may not contact a vendor — only the workers hold vendor
+    credentials, and only they can trip a rate limit — so the tool that asks for
+    a resync cannot perform one. It writes a row here; the worker for that
+    source reads it and runs. No socket, no port, no Docker API, and the ask
+    survives a worker that happens to be restarting when it is made.
+
+    ``served_at`` means *an attempt was made*, not that it succeeded. A failed
+    run still marks its requests served, because the alternative is a request
+    that stays pending and wakes the worker again immediately — a retry loop
+    against a vendor that is already refusing, which on Garmin costs an account
+    lockout rather than wasted time. The outcome is in ``sync_runs`` via
+    ``run_id``.
+
+    Nothing prunes this, for the same reason nothing prunes ``sync_runs``: the
+    rows are the record of what was asked for and what came of it, and a delete
+    path is a way to lose that.
+    """
+
+    __tablename__ = "sync_requests"
+
+    id: int | None = Field(default=None, primary_key=True)
+    source: str = Field(index=True)  # "garmin" | "wahoo"
+    requested_at: dt.datetime = Field(index=True)
+    # Free text from the caller — why they asked. Kept because a queue with no
+    # reasons cannot tell a habit from an incident afterwards.
+    note: str | None = None
+    served_at: dt.datetime | None = None
+    # The sync_runs row that served it. Not a foreign key: sync_runs is written
+    # by a different process and a request can outlive the bookkeeping row's
+    # own write failing, which runs.py explicitly tolerates.
+    run_id: int | None = None

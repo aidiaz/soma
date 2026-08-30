@@ -28,6 +28,7 @@ garmin-sync = "soma.ingest.garmin.sync:main"
 garmin-remap = "soma.ingest.garmin.remap:main"
 wahoo-auth = "soma.ingest.wahoo.auth:main"
 wahoo-sync = "soma.ingest.wahoo.sync:main"
+soma-sync-wait = "soma.ingest.schedule:main"
 soma-migrate = "soma.migrate:main"
 
 [dependency-groups]

@@ -12,6 +12,19 @@ holds it.
 
 ### Added
 
+- **On-demand sync: the `request_sync` tool.** Ingestion is scheduled — Garmin
+  at 08:00, Wahoo hourly — which is right for the data and wrong for the ride
+  you just finished. `request_sync` asks a worker to run now, for one source or
+  both. It does *not* sync: the server holds no vendor credential and is not
+  allowed to, so it appends a row to a new `sync_requests` table and the
+  worker for that source picks it up within `SOMA_SYNC_POLL_S` (default 30s).
+  Repeat asks coalesce into one sync, and a source that ran in the last two
+  minutes declines another — Garmin's rate limit is per account and only time
+  clears it. The reply carries the worker's health, because a request handed to
+  a worker that died on Tuesday is never served and nothing else would say so.
+  Requests are kept after they are served, with the `sync_runs` row that served
+  them.
+
 - **Sync runs are recorded.** Every attempt by `garmin-sync` and `wahoo-sync`
   writes a `sync_runs` row — before the work, so a killed process still leaves
   a trace, and again with the outcome and what it counted. A new
@@ -36,6 +49,19 @@ holds it.
   comes from rather than a refinement of it.
 
 ### Changed
+
+- **The sleep between sync runs became `soma-sync-wait`.** It returns early
+  when a request is queued, which is what makes `request_sync` mean anything —
+  a plain `sleep` could not be interrupted, so an ask at 21:00 would have waited
+  for 08:00. The fixed-hour arithmetic moved out of four lines of shell and into
+  Python along with it, where it has tests for the boundaries that bite: 07:59
+  waits for today, 08:00 exactly goes to tomorrow, and a DST change moves the
+  run with the clock. Behaviour and `SOMA_GARMIN_SYNC_AT` are unchanged.
+- **The vendor-isolation guard reads imports instead of scanning text.** It
+  missed `garth` and `curl_cffi`, and failed on any docstring containing the
+  word "Wahoo" — so no tool could describe ingestion. It now parses the AST of
+  both `serve/server.py` and `serve/queries.py`, which is stricter in the
+  direction that matters and no longer fooled by prose.
 
 - **`garmin-sync` runs at a fixed local hour, 08:00 by default**
   (`SOMA_GARMIN_SYNC_AT`), instead of every `SOMA_GARMIN_INTERVAL_S` seconds.

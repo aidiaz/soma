@@ -29,23 +29,35 @@ src/soma/
   clock.py             what "today" means; UTC, in one place
   db.py                SQLite engine + WAL pragmas
   metrics.py           CTL/ATL/TSB and the weekly ramp
+  sync_requests.py     the on-demand sync queue; the only server-to-worker path
   ingest/garmin/       auth CLI, client, sync, remap
   ingest/wahoo/        OAuth CLI, client, sync — trainer rides live here
+  ingest/schedule.py   the wait between runs: next fixed hour, or a request
   serve/               queries, MCP tools, HTTP app, OAuth allowlist
 ```
 
 `ingest/wahoo/` sits beside `ingest/garmin/`, and adding it changed nothing in
 `serve/` — which was the point of splitting by layer rather than by vendor.
 
-**The MCP server never contacts a vendor. It reads SQLite and writes two
+**The MCP server never contacts a vendor. It reads SQLite and writes three
 tables.** Do not add a tool that calls the Garmin or Wahoo API. The reasons:
 
 - only the sync workers can trip a vendor rate limit;
 - tool calls stay fast;
 - when a vendor breaks, the server keeps serving stored history.
 
-`test_server_factory.py` asserts this by inspecting `serve/server.py` for vendor
-imports, so the rule fails CI rather than review.
+`test_server_factory.py` asserts this by parsing the imports of `serve/server.py`
+and `serve/queries.py`, so the rule fails CI rather than review. It reads the
+AST rather than scanning the text, which it used to do: the text scan missed
+`garth` and `curl_cffi` and tripped over a docstring that merely said "Wahoo".
+
+**When a tool needs work done at a vendor, it queues it.** `request_sync` is the
+pattern: it appends to `sync_requests` and returns, and the worker that already
+holds that vendor's credential picks the row up within `SOMA_SYNC_POLL_S`. The
+table is the entire interface between the two containers — no port, no socket,
+no Docker API — and it is the third table the server writes. Copy this shape
+rather than reaching for a vendor client; the rule above is what makes a broken
+vendor a broken *sync* rather than a broken server.
 
 ## Facts verified against the installed libraries
 
@@ -147,7 +159,7 @@ Do not "correct" these without re-checking.
 
 ```bash
 make install
-make test      # 175 unit/integration tests
+make test      # 298 unit/integration tests
 make smoke     # drives the app over real HTTP and scans its log
 make reach     # probes third-party endpoints, no credentials
 make lint      # ruff check + format check
