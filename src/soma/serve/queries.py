@@ -20,7 +20,9 @@ from typing import Any
 
 from sqlmodel import col, desc, select
 
+from soma import sync_requests
 from soma.clock import UTC, now, today
+from soma.config import settings
 from soma.db import get_session
 from soma.metrics import duplicate_efforts, training_load_series, tss_ramp
 from soma.models import (
@@ -665,6 +667,70 @@ def log_test(
         return _dump(row)
 
 
+# The shortest gap between one source's sync and the next one asked for by
+# hand. Not a vendor limit — it is a guard against a caller that asks in a
+# loop, which is a real shape for a language model with no memory of its last
+# call. On Garmin that costs more than wasted time: its SSO limit is per
+# account and only time clears it. Short enough that a person who has just
+# stepped off the trainer never meets it.
+MIN_REQUEST_GAP_S = 120
+
+
+def request_sync(source: str = "all", note: str | None = None) -> dict[str, Any]:
+    """Ask a sync worker to run now. Queues the ask; does not perform the sync.
+
+    The server cannot sync. It holds no vendor credential and is not allowed to
+    hold one — see :mod:`soma.sync_requests` for why. This appends a row the
+    vendor's worker is already waiting on, and returns immediately.
+
+    The reply is deliberately not a promise. Each source reports whether an ask
+    was queued, and its current health from ``sync_runs`` — because a request
+    handed to a worker that died on Tuesday is never served, and the caller
+    cannot tell that apart from a slow one without being told.
+    """
+    if source in ("all", ""):
+        sources = list(SYNC_SOURCES)
+    elif source in SYNC_SOURCES:
+        sources = [source]
+    else:
+        raise ValueError(f"unknown source {source!r}; expected one of {SYNC_SOURCES} or 'all'")
+
+    health = sync_status_by_source()
+    out: dict[str, Any] = {}
+    for name in sources:
+        out[name] = _request_one(name, note) | {
+            "worker": {
+                "status": health[name]["status"],
+                "last_run_at": health[name]["last_run_at"],
+                "seconds_since_success": health[name]["seconds_since_success"],
+            }
+        }
+    return {
+        "requested_at": now().isoformat(),
+        "poll_seconds": settings.sync_poll_s,
+        "sources": out,
+    }
+
+
+def _request_one(source: str, note: str | None) -> dict[str, Any]:
+    with get_session() as session:
+        latest = _last_run(session, source)
+    since = _age_s(latest.started_at) if latest else None
+    if since is not None and since < MIN_REQUEST_GAP_S:
+        return {
+            "queued": False,
+            "reason": f"{source} synced {int(since)}s ago; the minimum gap is {MIN_REQUEST_GAP_S}s",
+            "requested_at": None,
+        }
+
+    row, created = sync_requests.enqueue(source, note=note)
+    return {
+        "queued": True,
+        "reason": "queued" if created else "an unserved request was already waiting",
+        "requested_at": row.requested_at.isoformat(),
+    }
+
+
 __all__ = [
     "get_daily_series",
     "get_health_trend",
@@ -675,4 +741,5 @@ __all__ = [
     "log_food",
     "log_test",
     "log_water",
+    "request_sync",
 ]

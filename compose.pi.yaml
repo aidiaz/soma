@@ -78,14 +78,23 @@ services:
       TZ: ${SOMA_TIMEZONE:-UTC}
     volumes:
       - soma-data:/app/data
-    # Compose has no scheduler, so the loop is the schedule. It wakes at a fixed
-    # local hour rather than every N seconds, because `sleep 86400` is not a
-    # daily schedule: it starts wherever the container happened to start, slips
-    # forward by each run's own duration, and moves an hour at every DST change.
-    # Recomputing the next 08:00 from the clock each pass fixes all three, and
-    # costs one `date` call. The hour is read in TZ, which is SOMA_TIMEZONE —
+    # Compose has no scheduler, so the loop is the schedule. `soma-sync-wait` is
+    # the sleep in the middle of it, and it does two things a `sleep` cannot.
+    #
+    # It wakes at a fixed local hour rather than every N seconds, because
+    # `sleep 86400` is not a daily schedule: it starts wherever the container
+    # happened to start, slips forward by each run's own duration, and moves an
+    # hour at every DST change. The hour is read in TZ, which is SOMA_TIMEZONE —
     # the same zone that decides the join key, so "the 08:00 run" and "today"
-    # can never disagree about which day they mean.
+    # can never disagree about which day they mean. That arithmetic was four
+    # lines of `date -d` here until it moved into Python, where it has tests;
+    # shell could only be checked by running it and waiting.
+    #
+    # It also returns early when the MCP server queues a request (see
+    # soma/sync_requests.py). That is the whole mechanism behind the
+    # `request_sync` tool: the server cannot call Garmin, so it appends a row
+    # and this worker — which does hold the credential — picks it up, within
+    # SOMA_SYNC_POLL_S.
     #
     # 08:00 is chosen for the data, not for tidiness. Garmin only finalises a
     # night's sleep and HRV after waking, so the morning is the first moment the
@@ -100,20 +109,19 @@ services:
     # swallowing the exit code with a bare `|| true` once hid a "command not
     # found" through a whole deploy, so the failure is logged with its code. A
     # run that fails every cycle is then visible in `docker compose logs`.
+    #
+    # The wait has a fallback for the same reason inverted: if it is the part
+    # that breaks, the loop has no sleep left in it and becomes a hot retry
+    # against Garmin, whose rate limit is per account. So a failing wait sleeps
+    # anyway.
     command:
       - sh
       - -c
       - |
-        at="${SOMA_GARMIN_SYNC_AT:-08:00}"
         while true; do
           garmin-sync --skip-existing || echo "garmin-sync FAILED (exit $$?) — retrying next cycle"
-          now=$$(date +%s)
-          next=$$(date -d "$$at" +%s)
-          # Strictly in the future: finishing at 07:59 must still wait for today,
-          # and finishing exactly at 08:00 must not sleep zero and run twice.
-          [ "$$next" -le "$$now" ] && next=$$(date -d "tomorrow $$at" +%s)
-          echo "next garmin-sync at $$(date -d @$$next)"
-          sleep $$((next - now))
+          soma-sync-wait --source garmin --at "${SOMA_GARMIN_SYNC_AT:-08:00}" \
+            || { echo "soma-sync-wait FAILED (exit $$?) — sleeping 15m instead"; sleep 900; }
         done
     restart: unless-stopped
     depends_on:
@@ -137,13 +145,19 @@ services:
       - soma-data:/app/data
     # Hourly rather than daily: a trainer session should be readable the evening
     # it happens, and Wahoo's access token lasts two hours, so a long gap means
-    # every run starts by refreshing. Same failure handling as garmin-sync — the
-    # exit code is logged rather than swallowed, so a run that fails every cycle
-    # is visible in `docker compose logs`.
+    # every run starts by refreshing. Hourly is still an hour, though, which is
+    # why the wait is interruptible — stepping off the trainer and asking about
+    # the ride is exactly the case `request_sync` exists for, and Wahoo is the
+    # source that holds it. Same failure handling as garmin-sync.
     command:
       - sh
       - -c
-      - 'while true; do wahoo-sync || echo "wahoo-sync FAILED (exit $?) — retrying next cycle"; sleep "${SOMA_WAHOO_INTERVAL_S:-3600}"; done'
+      - |
+        while true; do
+          wahoo-sync || echo "wahoo-sync FAILED (exit $$?) — retrying next cycle"
+          soma-sync-wait --source wahoo --every "${SOMA_WAHOO_INTERVAL_S:-3600}" \
+            || { echo "soma-sync-wait FAILED (exit $$?) — sleeping 15m instead"; sleep 900; }
+        done
     restart: unless-stopped
     depends_on:
       server:

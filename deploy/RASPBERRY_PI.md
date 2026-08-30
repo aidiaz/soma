@@ -5,7 +5,7 @@ The shape:
 ```
 Claude ──► https://soma.hwhub.dev ──► [Cloudflare Tunnel] ──► Pi (Docker)
                                                                    ├─ server        (MCP, reads SQLite)
-                                                                   ├─ garmin-sync   (daily 08:00, talks to Garmin)
+                                                                   ├─ garmin-sync   (daily 08:00, or on request)
                                                                    └─ cloudflared   (dials out)
 ```
 
@@ -189,6 +189,26 @@ The worker prints `next garmin-sync at ...` after every run, so the schedule is
 readable from the log rather than inferred from timestamps. `get_sync_status`
 answers the same question from the data: when each source last ran, whether it
 succeeded, and how long ago.
+
+### Syncing without waiting for the schedule
+
+The `request_sync` tool covers the ordinary case — the ride you just finished,
+hours before Wahoo's next hourly run. It does not sync. It appends a row to
+`sync_requests`, and the worker for that source, which is sitting in
+`soma-sync-wait` between runs, sees it within `SOMA_SYNC_POLL_S` and starts. The
+log says which happened:
+
+```
+waking wahoo-sync: requested at 2026-08-30T21:04:11Z    # someone asked
+waking garmin-sync: scheduled                           # the clock came round
+```
+
+This is why the server needs no vendor credential and no way out to the
+internet. If you need a sync from a shell instead, run the worker's command
+directly — `docker compose -f compose.pi.yaml exec garmin-sync garmin-sync
+--skip-existing` — but prefer the tool, which coalesces repeat asks and refuses
+to re-run a source that synced in the last two minutes. Garmin's rate limit is
+per account and only time clears it.
 
 ## 9. Updating
 

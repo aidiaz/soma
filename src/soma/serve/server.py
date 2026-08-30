@@ -1,6 +1,6 @@
 """MCP tool definitions and the stdio entry point.
 
-Seven tools, not thirty. One person, one read surface. Every tool reads or writes
+Ten tools, not thirty. One person, one read surface. Every tool reads or writes
 only the local database — none of them contacts Wahoo or Garmin. That is
 deliberate:
 
@@ -9,7 +9,9 @@ deliberate:
 - when a vendor changes its API and ingestion breaks, the server keeps serving
   the history already stored.
 
-Do not add a tool that calls a vendor API.
+Do not add a tool that calls a vendor API. ``request_sync`` is the shape to
+copy when a tool needs work done at a vendor: it appends a row to a queue and a
+worker that already holds the credential picks it up.
 
 :func:`build_mcp` is a factory, not a module-level singleton. The HTTP entry
 point (:mod:`soma.serve.app`) used to mutate a shared instance, which
@@ -122,6 +124,32 @@ def build_mcp(auth: Any = None) -> FastMCP:
         what counts as too long is the caller's judgement.
         """
         return queries.get_sync_status()
+
+    # --- ask ingestion to run: writes a queue row, never a vendor call -------
+
+    @mcp.tool
+    def request_sync(source: str = "all", note: str | None = None) -> dict:
+        """Ask ingestion to run now, instead of waiting for its next scheduled run.
+
+        For the ride that just finished. Garmin syncs at 08:00 and Wahoo hourly,
+        so a session done at 21:00 is not in the database when you ask about it.
+
+        This queues the request and returns straight away — it does not sync,
+        and the data is not there yet when it answers. The worker starts within
+        `poll_seconds`; a ride typically lands under a minute after that. Call
+        `get_sync_status` to see it land rather than calling this again.
+
+        `source` is "garmin", "wahoo", or "all" (the default). Wahoo holds
+        trainer and virtual rides; Garmin holds sleep, HRV and resting HR, and
+        finalises a night's sleep only after waking — asking it again before
+        then will not produce data that does not exist yet.
+
+        Repeat calls coalesce into one sync, and a source that synced in the
+        last couple of minutes declines a fresh one, so calling twice is
+        harmless but pointless. Read `worker` in the reply: a request made to a
+        worker whose status is "failed" or long stale will not be served.
+        """
+        return queries.request_sync(source=source, note=note)
 
     # --- write — narrow and deliberate --------------------------------------
 

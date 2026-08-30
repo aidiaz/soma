@@ -53,17 +53,25 @@ src/soma/
 
 ## Tools
 
-Seven, on purpose. One person, one read surface.
+Ten, on purpose. One person, one read surface.
 
 | Tool | What it does |
 |---|---|
 | `get_training_week` | **The primary tool.** The merged week: sessions, health, food, body, and the derived signals |
+| `get_daily_series` | One row per day over a long window, every variable already joined |
 | `get_health_trend` | Resting HR, HRV, sleep and Body Battery over a window |
 | `get_recent_activities` | Session detail when one ride needs looking at |
 | `get_tests` | FTP and 4DP history with W/kg |
 | `get_sync_status` | Whether ingestion is actually running, per source, with the last few runs |
-| `log_nutrition` | Record a day's food — reporting it in conversation is what creates the entry |
+| `request_sync` | Ask a sync worker to run now, for the ride that just finished |
+| `log_food` | Record one thing eaten — reporting it in conversation is what creates the entry |
+| `log_water` | Add water, a glass at a time |
 | `log_body` | Weight and waist, weekly |
+
+`request_sync` is the one tool that causes anything outside the database to
+happen, and it still does not leave it: the server holds no vendor credential,
+so it appends to a queue and the sync worker that does hold one picks the row
+up. That keeps a vendor outage out of the path of every other question.
 
 No delete tool. Corrections happen by upsert on the date key.
 

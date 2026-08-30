@@ -42,6 +42,7 @@ EXPECTED_TOOLS = {
     "get_recent_activities",
     "get_tests",
     "get_sync_status",
+    "request_sync",
     "log_food",
     "log_water",
     "log_body",
@@ -274,6 +275,28 @@ async def _check_tools(r: Results, url: str, token: str) -> None:
             "get_sync_status reports every source",
             set(sync.get("sources", {})) == {"garmin", "wahoo"},
             f"got {sorted(sync.get('sources', {}))}",
+        )
+
+        # request_sync must queue and return, not sync. The smoke database has
+        # no worker behind it, so a tool that actually synced would hang here or
+        # fail against Garmin — which is exactly the regression worth catching.
+        queued = (await client.call_tool("request_sync", {"source": "wahoo"})).data
+        r.check(
+            "request_sync queues an on-demand sync",
+            queued.get("sources", {}).get("wahoo", {}).get("queued") is True,
+            f"got {queued}",
+        )
+        r.check(
+            "request_sync reports the worker it is asking",
+            queued["sources"]["wahoo"]["worker"]["status"] == "never",
+            "a worker that has never run must say so, or a request that will "
+            "never be served looks accepted",
+        )
+        again = (await client.call_tool("request_sync", {"source": "wahoo"})).data
+        r.check(
+            "a second request coalesces rather than queueing twice",
+            "already waiting" in again["sources"]["wahoo"]["reason"],
+            f"got {again['sources']['wahoo']['reason']}",
         )
 
         r.start("empty-state honesty")
