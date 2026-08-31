@@ -9,7 +9,7 @@ dependencies = [
     "fastmcp>=2.13",
     "garminconnect>=0.3.11",
     "fastapi>=0.115",
-    "uvicorn[standard]>=0.30",
+    "uvicorn[standard]>=0.52.4",
     "sqlmodel>=0.0.22",
     "pydantic-settings>=2.5",
     # Used directly by ingest/wahoo. It already arrived transitively through
