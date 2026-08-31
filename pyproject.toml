@@ -37,7 +37,7 @@ dev = [
     # contract, and 0.16 widened it — 25 findings appeared with no code change
     # and CI went red on a dependency bump. Pinning the minor makes each
     # widening an explicit decision on a dependabot PR instead of a surprise.
-    "ruff>=0.16.4,<0.17",
+    "ruff>=0.16.5,<0.17",
     "basedpyright>=1.18",
     "pytest>=8",
     "pytest-asyncio>=0.24",
