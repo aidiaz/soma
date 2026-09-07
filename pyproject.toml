@@ -6,7 +6,7 @@ readme = "README.md"
 # garminconnect 0.3.11 itself requires >=3.12, so this floor is not ours to lower.
 requires-python = ">=3.12"
 dependencies = [
-    "fastmcp>=2.13",
+    "fastmcp>=4.0.2",
     "garminconnect>=0.3.11",
     "fastapi>=0.115",
     "uvicorn[standard]>=0.30",
