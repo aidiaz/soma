@@ -10,7 +10,7 @@ dependencies = [
     "garminconnect>=0.3.11",
     "fastapi>=0.115",
     "uvicorn[standard]>=0.30",
-    "sqlmodel>=0.0.22",
+    "sqlmodel>=0.0.42",
     "pydantic-settings>=2.5",
     # Used directly by ingest/wahoo. It already arrived transitively through
     # fastmcp, and depending on someone else's dependency graph for a module
